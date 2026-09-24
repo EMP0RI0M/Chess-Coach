@@ -1,4 +1,5 @@
 import { searchBestMove, evaluateBoardState } from './androidChessEngine';
+import { rustEngineBridge } from './rustWasmEngine';
 import { Chess } from 'chess.js';
 
 export interface WorkerMessage {
@@ -28,7 +29,7 @@ class StockfishWorkerController {
   private currentCalculationId = 0;
 
   constructor() {
-    // Initialized
+    rustEngineBridge.initEngine();
   }
 
   public postMessage(msg: WorkerMessage) {
@@ -49,16 +50,17 @@ class StockfishWorkerController {
       const calcId = ++this.currentCalculationId;
       const { fen, depth = 3, movetime = 800 } = msg.data;
 
-      // 1. Instant static evaluation
+      // 1. Instant static zero-allocation bitboard evaluation
       try {
+        const bitboardEval = rustEngineBridge.evaluateBitboard(fen);
         const tempChess = new Chess(fen);
-        const staticScore = evaluateBoardState(tempChess) / 100;
+        const staticScore = evaluateBoardState(tempChess) / 100 || bitboardEval.scoreCp;
         this.emit({
           type: 'EVALUATION',
           data: {
             bestMove: null,
             scoreCp: staticScore,
-            depth: 1,
+            depth: bitboardEval.depth,
             pvLine: '',
           },
         });
