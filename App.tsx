@@ -286,6 +286,33 @@ export default function App() {
     jumpToMove(idx);
   };
 
+  // Audio & Sensory Feedback
+  const playMoveAudioFeedback = useCallback(() => {
+    if (!settings.sound) return;
+    if (chess.isGameOver()) {
+      if (chess.isCheckmate()) {
+        sensoryAudioEngine.playCheckmateSound();
+        return;
+      }
+    }
+    if (chess.inCheck()) {
+      sensoryAudioEngine.playCheckSound();
+      return;
+    }
+    const last = historyMoves[historyMoves.length - 1];
+    if (last?.captured || last?.san?.includes('x')) {
+      sensoryAudioEngine.playCaptureSound();
+      return;
+    }
+    sensoryAudioEngine.playMoveSound();
+  }, [chess, historyMoves, settings.sound]);
+
+  const handleIllegalMove = useCallback(() => {
+    if (settings.sound) {
+      sensoryAudioEngine.playIllegalSound();
+    }
+  }, [settings.sound]);
+
   // 6. Handle square tap
   const handleSquarePress = (square: Square) => {
     if (isBoardEditorOpen) {
@@ -312,13 +339,16 @@ export default function App() {
       }
 
       const moved = makeMove(selectedSquare, square, 'q');
-      if (!moved) {
+      if (moved) {
+        playMoveAudioFeedback();
+      } else {
         const piece = chess.get(square);
         if (piece && piece.color === chess.turn()) {
           const moves = chess.moves({ square, verbose: true }) as Move[];
           selectSquare(square, moves.map((m) => m.to));
         } else {
           selectSquare(null, []);
+          handleIllegalMove();
         }
       }
     }
@@ -326,8 +356,13 @@ export default function App() {
 
   // Handle Drag and Drop move from Reanimated native thread gesture
   const handleDropMove = useCallback((from: Square, to: Square) => {
-    makeMove(from, to, 'q');
-  }, [makeMove]);
+    const moved = makeMove(from, to, 'q');
+    if (moved) {
+      playMoveAudioFeedback();
+    } else {
+      handleIllegalMove();
+    }
+  }, [makeMove, playMoveAudioFeedback, handleIllegalMove]);
 
   const currentMove = currentMoveIndex >= 0 ? historyMoves[currentMoveIndex] : null;
 
@@ -795,7 +830,31 @@ export default function App() {
                   sideEvalMate={evaluation.scoreMate}
                   showSideEvalBar={settings.showSideEvalBar}
                   jevImprint={evaluation.imprint}
+                  onIllegalMove={handleIllegalMove}
                 />
+              )}
+
+              {/* 📢 Game Status Alerts (Check, Checkmate, Draw) */}
+              {chess.isGameOver() && chess.isCheckmate() && (
+                <View style={styles.checkmateBanner}>
+                  <Trophy size={15} color="#FFFFFF" />
+                  <Text style={styles.checkmateBannerText}>
+                    CHECKMATE • {chess.turn() === 'w' ? 'Black' : 'White'} Wins!
+                  </Text>
+                </View>
+              )}
+              {chess.inCheck() && !chess.isGameOver() && (
+                <View style={styles.checkBanner}>
+                  <AlertOctagon size={14} color="#FFFFFF" />
+                  <Text style={styles.checkBannerText}>
+                    KING IN CHECK! • {chess.turn() === 'w' ? 'White' : 'Black'} to move
+                  </Text>
+                </View>
+              )}
+              {chess.isGameOver() && !chess.isCheckmate() && (
+                <View style={styles.drawBanner}>
+                  <Text style={styles.drawBannerText}>🤝 Game Drawn / Stalemate</Text>
+                </View>
               )}
 
               {/* 4. Bottom Player Bar (Self) with Captured Pieces & Advantage */}
@@ -2033,7 +2092,7 @@ const styles = StyleSheet.create({
   },
   // Analysis Content Area
   analysisScrollView: {
-    flex: 1,
+    maxHeight: 115,
     marginVertical: 4,
   },
   cognitiveCard: {
@@ -3074,24 +3133,24 @@ const styles = StyleSheet.create({
   },
   // Two-Column Move Table Styles
   moveTableContainer: {
-    flex: 1,
+    height: 115,
+    maxHeight: 115,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    padding: 10,
+    borderRadius: 14,
+    padding: 8,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    marginBottom: 8,
-    minHeight: 180,
+    marginVertical: 4,
   },
   moveTableHeader: {
     flexDirection: 'row',
-    paddingBottom: 8,
+    paddingBottom: 6,
     borderBottomWidth: 1.5,
     borderBottomColor: '#E2E8F0',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   moveTableHeadText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#475569',
     textTransform: 'uppercase',
@@ -3102,21 +3161,21 @@ const styles = StyleSheet.create({
   moveTableRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 3,
+    paddingVertical: 2,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
   moveTableNum: {
     width: 38,
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#94A3B8',
   },
   moveTableCell: {
     flex: 1,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 6,
     marginHorizontal: 2,
   },
   moveTableCellActive: {
@@ -3125,7 +3184,7 @@ const styles = StyleSheet.create({
     borderColor: '#2563EB',
   },
   moveTableText: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#1E293B',
   },
@@ -3134,13 +3193,71 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   emptyMovesBox: {
-    paddingVertical: 30,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyMovesText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#94A3B8',
     textAlign: 'center',
+  },
+  // Game Status Alert Banners
+  checkmateBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginVertical: 4,
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  checkmateBannerText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginLeft: 6,
+  },
+  checkBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EA580C',
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginVertical: 4,
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  checkBannerText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
+    marginLeft: 6,
+  },
+  drawBanner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#64748B',
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginVertical: 4,
+  },
+  drawBannerText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
   },
 });

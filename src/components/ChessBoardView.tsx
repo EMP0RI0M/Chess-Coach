@@ -35,6 +35,7 @@ interface ChessBoardViewProps {
   sideEvalMate?: number | null;
   showSideEvalBar?: boolean;
   jevImprint?: JevVisualImprint;
+  onIllegalMove?: () => void;
 }
 
 const BOARD_THEME_COLORS: Record<BoardTheme, { light: string; dark: string }> = {
@@ -85,6 +86,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
     sideEvalMate,
     showSideEvalBar = true,
     jevImprint,
+    onIllegalMove,
   }) => {
     const squareSize = boardSize / 8;
     const ranks = React.useMemo(() => isWhiteOrientation ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8], [isWhiteOrientation]);
@@ -103,6 +105,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
 
     // Fast O(1) Matrix Board Extraction - Always fresh for current position
     const boardMatrix = chess.board();
+    const isCheck = chess.inCheck();
 
     // Vector Clamp Ray calculation from Jev System-1
     const vectorClampPoints = React.useMemo(() => {
@@ -157,11 +160,20 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                   const isLastMoveSquare =
                     lastMove?.from === squareName || lastMove?.to === squareName;
                   const isHero = heroSquare === squareName;
+                  const isKingInCheck = isCheck && piece && piece.type === 'k' && piece.color === activeTurn;
                   // Threat is active if this piece belongs to the active player and is under direct attack
                   const isThreatenedPiece = threatsEnabled && piece && piece.color === activeTurn && threatAnalysis.threatenedPieceSquares.has(squareName);
                   const isAttackingPiece = threatsEnabled && piece && piece.color !== activeTurn && threatAnalysis.threatLines.some(t => t.from === squareName);
                   const isJevCritical = jevImprint && jevImprint.criticalSquare === squareName;
                   const jevGlowColor = jevImprint?.uiColorOverlay || '#EF4444';
+
+                  // Calculate legal targets for this specific piece
+                  let legalTargetsForPiece: string[] = [];
+                  if (piece && piece.color === activeTurn) {
+                    try {
+                      legalTargetsForPiece = chess.moves({ square: squareName, verbose: true }).map((m: any) => m.to);
+                    } catch {}
+                  }
 
                   const squareContent = (
                     <>
@@ -213,6 +225,8 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                           isWhiteOrientation={isWhiteOrientation}
                           onDropMove={onDropMove}
                           onSelectSquare={onSquarePress}
+                          legalTargets={legalTargetsForPiece}
+                          onIllegalDrop={onIllegalMove}
                           disabled={isEditorActive}
                           pieceTheme={pieceTheme}
                         />
@@ -230,6 +244,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                     isSelected && styles.selectedSquare,
                     isLastMoveSquare && styles.lastMoveSquare,
                     isHero && styles.heroSquareHighlight,
+                    isKingInCheck && styles.checkSquareHighlight,
                     isThreatenedPiece && styles.threatenedPieceHighlight,
                     isAttackingPiece && styles.attackingPieceHighlight,
                     isJevCritical && {
@@ -433,6 +448,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.35)',
     borderWidth: 1.5,
     borderColor: '#10B981',
+  },
+  checkSquareHighlight: {
+    backgroundColor: 'rgba(239, 68, 68, 0.7)',
+    borderWidth: 2.5,
+    borderColor: '#DC2626',
   },
   threatHighlight: {
     backgroundColor: 'rgba(239, 68, 68, 0.25)',

@@ -19,6 +19,8 @@ interface DraggablePieceProps {
   isWhiteOrientation: boolean;
   onDropMove: (from: Square, to: Square) => void;
   onSelectSquare: (square: Square) => void;
+  legalTargets?: string[];
+  onIllegalDrop?: () => void;
   disabled?: boolean;
   pieceTheme?: PieceTheme;
 }
@@ -40,6 +42,8 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
     isWhiteOrientation,
     onDropMove,
     onSelectSquare,
+    legalTargets,
+    onIllegalDrop,
     disabled = false,
     pieceTheme = 'Vector Neo',
   }) => {
@@ -103,19 +107,33 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
         }
 
         if (targetCol >= 0 && targetCol <= 7 && targetRow >= 0 && targetRow <= 7) {
-          // Snap directly to the target grid position without springing back
-          translateX.value = deltaCol * squareSize;
-          translateY.value = deltaRow * squareSize;
-
           const targetFile = String.fromCharCode(97 + targetCol);
           const targetRank = (targetRow + 1).toString();
           const targetSquare = `${targetFile}${targetRank}` as Square;
+
+          // Validate legality before snapping to new square
+          if (legalTargets && !legalTargets.includes(targetSquare)) {
+            // Illegal move! Instantly snap back to starting square
+            translateX.value = withSpring(0, SPRING_CONFIG);
+            translateY.value = withSpring(0, SPRING_CONFIG);
+            if (onIllegalDrop) {
+              runOnJS(onIllegalDrop)();
+            }
+            return;
+          }
+
+          // Legal move: snap directly to target square and commit
+          translateX.value = deltaCol * squareSize;
+          translateY.value = deltaRow * squareSize;
 
           runOnJS(onDropMove)(square, targetSquare);
         } else {
           // Out of bounds drop -> snap back to start
           translateX.value = withSpring(0, SPRING_CONFIG);
           translateY.value = withSpring(0, SPRING_CONFIG);
+          if (onIllegalDrop) {
+            runOnJS(onIllegalDrop)();
+          }
         }
       });
 
