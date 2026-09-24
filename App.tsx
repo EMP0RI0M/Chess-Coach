@@ -51,6 +51,8 @@ import {
   Trophy,
 } from 'lucide-react-native';
 
+import { useChessStore } from './src/state/chessStore';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BASE_BOARD_SIZE = Math.min(SCREEN_WIDTH - 28, 380);
 
@@ -92,52 +94,45 @@ function getSquareCenter(sq: string, isWhiteOrientation: boolean, squareSize: nu
 }
 
 export default function App() {
-  const [chess] = useState(() => new Chess());
-  const [boardState, setBoardState] = useState<({ type: string; color: string } | null)[][]>(() => chess.board());
-  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
-  const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
-  const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null);
-  const [isWhiteOrientation, setIsWhiteOrientation] = useState(true);
-  
-  // Real History tracking
-  const [historyMoves, setHistoryMoves] = useState<Move[]>([]);
-  const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(-1);
-  const [engineActive, setEngineActive] = useState(true);
+  // Zustand Atomic Subscriptions
+  const chess = useChessStore((s) => s.chess);
+  const fen = useChessStore((s) => s.fen);
+  const selectedSquare = useChessStore((s) => s.selectedSquare);
+  const possibleMoves = useChessStore((s) => s.possibleMoves);
+  const lastMove = useChessStore((s) => s.lastMove);
+  const isWhiteOrientation = useChessStore((s) => s.isWhiteOrientation);
+  const historyMoves = useChessStore((s) => s.historyMoves);
+  const currentMoveIndex = useChessStore((s) => s.currentMoveIndex);
+  const currentScreen = useChessStore((s) => s.currentScreen);
+  const currentPuzzleIdx = useChessStore((s) => s.currentPuzzleIdx);
+  const isMenuOpen = useChessStore((s) => s.isMenuOpen);
+  const isSettingsOpen = useChessStore((s) => s.isSettingsOpen);
+  const isVariantOpen = useChessStore((s) => s.isVariantOpen);
+  const isBoardEditorOpen = useChessStore((s) => s.isBoardEditorOpen);
+  const selectedVariant = useChessStore((s) => s.selectedVariant);
+  const selectedEditorPiece = useChessStore((s) => s.selectedEditorPiece);
+  const settings = useChessStore((s) => s.settings);
 
-  // Current Active Top-Level Screen: 'home' | 'analysis' | 'openings' | 'puzzles' | 'pgn'
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'analysis' | 'openings' | 'puzzles' | 'pgn'>('home');
-  const [currentPuzzleIdx, setCurrentPuzzleIdx] = useState(0);
+  // Zustand Store Actions
+  const setScreen = useChessStore((s) => s.setScreen);
+  const selectSquare = useChessStore((s) => s.selectSquare);
+  const makeMove = useChessStore((s) => s.makeMove);
+  const undoMove = useChessStore((s) => s.undoMove);
+  const redoMove = useChessStore((s) => s.redoMove);
+  const resetGame = useChessStore((s) => s.resetGame);
+  const jumpToMove = useChessStore((s) => s.jumpToMove);
+  const flipBoard = useChessStore((s) => s.flipBoard);
+  const loadFen = useChessStore((s) => s.loadFen);
+  const updateSetting = useChessStore((s) => s.updateSetting);
+  const setMenuOpen = useChessStore((s) => s.setMenuOpen);
+  const setSettingsOpen = useChessStore((s) => s.setSettingsOpen);
+  const setVariantOpen = useChessStore((s) => s.setVariantOpen);
+  const setBoardEditorOpen = useChessStore((s) => s.setBoardEditorOpen);
+  const setSelectedVariant = useChessStore((s) => s.setSelectedVariant);
+  const setSelectedEditorPiece = useChessStore((s) => s.setSelectedEditorPiece);
+  const setCurrentPuzzleIdx = useChessStore((s) => s.setCurrentPuzzleIdx);
 
-  // Modals
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isVariantOpen, setIsVariantOpen] = useState(false);
-  const [isBoardEditorOpen, setIsBoardEditorOpen] = useState(false);
-  const [selectedVariant, setSelectedVariant] = useState('Standard Chess');
-  const [selectedEditorPiece, setSelectedEditorPiece] = useState<string | null>('w_p');
-
-  // ALL 16 SETTINGS - ACTIVELY CONTROLLING THE UI
-  const [settings, setSettings] = useState({
-    // 1. Stockfish / Engine Settings
-    stockfishEnabled: true,
-    stockfishSearchTime: 1.0, // Search Time: 0.5s, 1.0s, 2.0s, 5.0s
-    multipleLines: 3, // Multiple Lines (MultiPV): 1, 2, 3, 5
-    cpuThreads: 4, // CPU Threads: 1, 2, 4, 8
-    bestMoveArrow: true, // Best Move Arrow
-    bestHero: true, // Best Hero square highlight
-    serverAnalysis: false, // Server Analysis toggle
-    
-    // 2. Display & Board Settings
-    smallBoard: false, // Small Board toggle
-    showEvalGauge: true, // Show Evaluation Gauge
-    inlineNotations: true, // Inline Notations
-    toggleMoveAnnotations: true, // Toggle Move Annotations (!, ?!, ??)
-    showComments: true, // Show Comments / Cognitive breakdown
-    showThreats: false, // Show Threats on board
-    showIndianLines: false, // Show Indian Lines
-    openExplorer: true, // Open Explorer
-    sound: true, // Sound
-  });
+  const [engineActive] = useState(true);
 
   // Dynamic board sizing bound to settings.smallBoard
   const boardSize = settings.smallBoard ? BASE_BOARD_SIZE * 0.82 : BASE_BOARD_SIZE;
@@ -152,77 +147,37 @@ export default function App() {
     return identifyEco(sans);
   }, [historyMoves, currentMoveIndex]);
 
-  // Synchronize board UI & trigger Stockfish evaluation
-  const syncBoard = useCallback(() => {
-    setBoardState(chess.board());
+  // Synchronize evaluation when FEN changes
+  useEffect(() => {
     if (engineActive && settings.stockfishEnabled) {
       const depth = Math.min(Math.max(settings.cpuThreads >= 4 ? 3 : 2, 2), 3);
-      evaluatePosition(chess.fen(), depth);
+      evaluatePosition(fen, depth);
     }
-  }, [chess, engineActive, settings.stockfishEnabled, settings.cpuThreads, evaluatePosition]);
-
-  useEffect(() => {
-    syncBoard();
-  }, [syncBoard]);
+  }, [fen, engineActive, settings.stockfishEnabled, settings.cpuThreads, evaluatePosition]);
 
   // 1. Reset / Clear All Moves
   const handleClearAllMoves = () => {
-    chess.reset();
-    setSelectedSquare(null);
-    setPossibleMoves([]);
-    setLastMove(null);
-    setHistoryMoves([]);
-    setCurrentMoveIndex(-1);
-    setIsMenuOpen(false);
-    syncBoard();
+    resetGame();
   };
 
   // 2. Undo
   const handleUndo = () => {
-    if (historyMoves.length === 0 || currentMoveIndex < 0) return;
-    chess.undo();
-    const newIndex = currentMoveIndex - 1;
-    setCurrentMoveIndex(newIndex);
-    setSelectedSquare(null);
-    setPossibleMoves([]);
-    if (newIndex >= 0) {
-      const prevMove = historyMoves[newIndex];
-      setLastMove({ from: prevMove.from, to: prevMove.to });
-    } else {
-      setLastMove(null);
-    }
-    syncBoard();
+    undoMove();
   };
 
   // 3. Redo
   const handleRedo = () => {
-    if (currentMoveIndex >= historyMoves.length - 1) return;
-    const nextMove = historyMoves[currentMoveIndex + 1];
-    chess.move(nextMove);
-    setCurrentMoveIndex(currentMoveIndex + 1);
-    setSelectedSquare(null);
-    setPossibleMoves([]);
-    setLastMove({ from: nextMove.from, to: nextMove.to });
-    syncBoard();
+    redoMove();
   };
 
   // 4. Flip Board
   const handleFlipBoard = () => {
-    setIsWhiteOrientation((prev) => !prev);
+    flipBoard();
   };
 
   // 5. Jump to Specific Move in History
   const handleJumpToMove = (idx: number) => {
-    chess.reset();
-    for (let i = 0; i <= idx; i++) {
-      chess.move(historyMoves[i]);
-    }
-    setCurrentMoveIndex(idx);
-    const targetMove = historyMoves[idx];
-    setLastMove({ from: targetMove.from, to: targetMove.to });
-    setSelectedSquare(null);
-    setPossibleMoves([]);
-    syncBoard();
+    jumpToMove(idx);
   };
 
   // 6. Handle square tap
@@ -234,52 +189,30 @@ export default function App() {
         const [color, type] = selectedEditorPiece.split('_');
         chess.put({ type: type as any, color: color as any }, square);
       }
-      syncBoard();
+      loadFen(chess.fen());
       return;
     }
 
     if (selectedSquare === null) {
       const piece = chess.get(square);
       if (piece && piece.color === chess.turn()) {
-        setSelectedSquare(square);
         const moves = chess.moves({ square, verbose: true }) as Move[];
-        setPossibleMoves(moves.map((m) => m.to));
+        selectSquare(square, moves.map((m) => m.to));
       }
     } else {
       if (selectedSquare === square) {
-        setSelectedSquare(null);
-        setPossibleMoves([]);
+        selectSquare(null, []);
         return;
       }
 
-      try {
-        const move = chess.move({
-          from: selectedSquare,
-          to: square,
-          promotion: 'q',
-        });
-
-        if (move) {
-          const updatedHistory = historyMoves.slice(0, currentMoveIndex + 1);
-          updatedHistory.push(move);
-          setHistoryMoves(updatedHistory);
-          setCurrentMoveIndex(updatedHistory.length - 1);
-
-          setLastMove({ from: move.from, to: move.to });
-          setSelectedSquare(null);
-          setPossibleMoves([]);
-          syncBoard();
-          return;
-        }
-      } catch {
+      const moved = makeMove(selectedSquare, square, 'q');
+      if (!moved) {
         const piece = chess.get(square);
         if (piece && piece.color === chess.turn()) {
-          setSelectedSquare(square);
           const moves = chess.moves({ square, verbose: true }) as Move[];
-          setPossibleMoves(moves.map((m) => m.to));
+          selectSquare(square, moves.map((m) => m.to));
         } else {
-          setSelectedSquare(null);
-          setPossibleMoves([]);
+          selectSquare(null, []);
         }
       }
     }
@@ -287,30 +220,8 @@ export default function App() {
 
   // Handle Drag and Drop move from Reanimated native thread gesture
   const handleDropMove = useCallback((from: Square, to: Square) => {
-    try {
-      const move = chess.move({
-        from,
-        to,
-        promotion: 'q',
-      });
-
-      if (move) {
-        const updatedHistory = historyMoves.slice(0, currentMoveIndex + 1);
-        updatedHistory.push(move);
-        setHistoryMoves(updatedHistory);
-        setCurrentMoveIndex(updatedHistory.length - 1);
-
-        setLastMove({ from: move.from, to: move.to });
-        setSelectedSquare(null);
-        setPossibleMoves([]);
-        syncBoard();
-      }
-    } catch {
-      // Invalid drop move, reset selection cleanly
-      setSelectedSquare(null);
-      setPossibleMoves([]);
-    }
-  }, [chess, historyMoves, currentMoveIndex, syncBoard]);
+    makeMove(from, to, 'q');
+  }, [makeMove]);
 
   const currentMove = currentMoveIndex >= 0 ? historyMoves[currentMoveIndex] : null;
 
@@ -704,9 +615,9 @@ export default function App() {
                   activeOpacity={0.8}
                   onPress={() => {
                     const nextState = !settings.stockfishEnabled;
-                    setSettings((prev) => ({ ...prev, stockfishEnabled: nextState }));
+                    updateSetting('stockfishEnabled', nextState);
                     if (nextState) {
-                      evaluatePosition(chess.fen(), 15);
+                      evaluatePosition(fen, 3);
                     } else {
                       stopEvaluation();
                     }
@@ -1028,7 +939,7 @@ export default function App() {
                           styles.stepperPill,
                           settings.cpuThreads === t && styles.stepperPillActive,
                         ]}
-                        onPress={() => setSettings({ ...settings, cpuThreads: t })}
+                        onPress={() => updateSetting('cpuThreads', t)}
                       >
                         <Text
                           style={[
@@ -1054,7 +965,7 @@ export default function App() {
                           styles.stepperPill,
                           settings.multipleLines === l && styles.stepperPillActive,
                         ]}
-                        onPress={() => setSettings({ ...settings, multipleLines: l })}
+                        onPress={() => updateSetting('multipleLines', l)}
                       >
                         <Text
                           style={[
@@ -1080,7 +991,7 @@ export default function App() {
                           styles.stepperPill,
                           settings.stockfishSearchTime === sec && styles.stepperPillActive,
                         ]}
-                        onPress={() => setSettings({ ...settings, stockfishSearchTime: sec })}
+                        onPress={() => updateSetting('stockfishSearchTime', sec)}
                       >
                         <Text
                           style={[
@@ -1100,7 +1011,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Best Move Arrow</Text>
                   <Switch
                     value={settings.bestMoveArrow}
-                    onValueChange={(val) => setSettings({ ...settings, bestMoveArrow: val })}
+                    onValueChange={(val) => updateSetting('bestMoveArrow', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1110,7 +1021,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Best Hero</Text>
                   <Switch
                     value={settings.bestHero}
-                    onValueChange={(val) => setSettings({ ...settings, bestHero: val })}
+                    onValueChange={(val) => updateSetting('bestHero', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1120,7 +1031,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Server Analysis</Text>
                   <Switch
                     value={settings.serverAnalysis}
-                    onValueChange={(val) => setSettings({ ...settings, serverAnalysis: val })}
+                    onValueChange={(val) => updateSetting('serverAnalysis', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1133,7 +1044,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Show Evaluation Gauge</Text>
                   <Switch
                     value={settings.showEvalGauge}
-                    onValueChange={(val) => setSettings({ ...settings, showEvalGauge: val })}
+                    onValueChange={(val) => updateSetting('showEvalGauge', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1143,7 +1054,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Inline Notations</Text>
                   <Switch
                     value={settings.inlineNotations}
-                    onValueChange={(val) => setSettings({ ...settings, inlineNotations: val })}
+                    onValueChange={(val) => updateSetting('inlineNotations', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1153,7 +1064,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Toggle Move Annotations</Text>
                   <Switch
                     value={settings.toggleMoveAnnotations}
-                    onValueChange={(val) => setSettings({ ...settings, toggleMoveAnnotations: val })}
+                    onValueChange={(val) => updateSetting('toggleMoveAnnotations', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1163,7 +1074,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Show Indian Lines</Text>
                   <Switch
                     value={settings.showIndianLines}
-                    onValueChange={(val) => setSettings({ ...settings, showIndianLines: val })}
+                    onValueChange={(val) => updateSetting('showIndianLines', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1173,7 +1084,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Show Comments</Text>
                   <Switch
                     value={settings.showComments}
-                    onValueChange={(val) => setSettings({ ...settings, showComments: val })}
+                    onValueChange={(val) => updateSetting('showComments', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1183,7 +1094,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Small Board</Text>
                   <Switch
                     value={settings.smallBoard}
-                    onValueChange={(val) => setSettings({ ...settings, smallBoard: val })}
+                    onValueChange={(val) => updateSetting('smallBoard', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1193,7 +1104,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Open Explorer</Text>
                   <Switch
                     value={settings.openExplorer}
-                    onValueChange={(val) => setSettings({ ...settings, openExplorer: val })}
+                    onValueChange={(val) => updateSetting('openExplorer', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1203,7 +1114,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Show Threats</Text>
                   <Switch
                     value={settings.showThreats}
-                    onValueChange={(val) => setSettings({ ...settings, showThreats: val })}
+                    onValueChange={(val) => updateSetting('showThreats', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
@@ -1213,7 +1124,7 @@ export default function App() {
                   <Text style={styles.settingLabel}>Sound</Text>
                   <Switch
                     value={settings.sound}
-                    onValueChange={(val) => setSettings({ ...settings, sound: val })}
+                    onValueChange={(val) => updateSetting('sound', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>
