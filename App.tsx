@@ -283,14 +283,26 @@ export default function App() {
     return { evalText, stateText, stateColor };
   }, [evaluation]);
 
-  // Cognitive Explanation (Bound to settings.showComments & toggleMoveAnnotations)
+  // Cognitive Explanation (Bound to settings.showComments & toggleMoveAnnotations & JEV System-1 Invariant Extraction)
   const cognitiveInsight = useMemo(() => {
+    const jev = evaluation.jevAnalysis;
+
     if (!currentMove) {
+      if (jev) {
+        return {
+          hasMove: false,
+          annotation: '',
+          why: jev.coreIdea,
+          concept: evaluation.imprint?.flashWord || 'JEV System-1',
+          jev,
+        };
+      }
       return {
         hasMove: false,
         annotation: '',
-        why: 'Make a move on the board to begin grounded cognitive analysis.',
+        why: 'Make a move or let Stockfish stream to begin JEV System-1 invariant extraction.',
         concept: 'Opening Preparation',
+        jev: null,
       };
     }
 
@@ -298,18 +310,20 @@ export default function App() {
     const isCapture = san.includes('x');
     const annotation = settings.toggleMoveAnnotations ? (isCapture ? '!' : '') : '';
 
-    let why = 'Develops pieces actively while securing key central squares.';
-    let concept = 'Piece Activity & Center Control';
+    let why = jev?.coreIdea || 'Develops pieces actively while securing key central squares.';
+    let concept = evaluation.imprint?.flashWord || 'Piece Activity & Center Control';
 
-    if (currentMove.piece === 'p') {
-      why = 'Claims central space and opens lines for bishop and queen development.';
-      concept = 'Pawn Structure & Space';
-    } else if (currentMove.piece === 'n') {
-      why = 'Develops knight toward center, controlling vital outpost squares.';
-      concept = 'Knight Mobility';
-    } else if (currentMove.piece === 'b') {
-      why = 'Activates bishop along open diagonal to exert long-range pressure.';
-      concept = 'Diagonal Tension';
+    if (!jev) {
+      if (currentMove.piece === 'p') {
+        why = 'Claims central space and opens lines for bishop and queen development.';
+        concept = 'Pawn Structure & Space';
+      } else if (currentMove.piece === 'n') {
+        why = 'Develops knight toward center, controlling vital outpost squares.';
+        concept = 'Knight Mobility';
+      } else if (currentMove.piece === 'b') {
+        why = 'Activates bishop along open diagonal to exert long-range pressure.';
+        concept = 'Diagonal Tension';
+      }
     }
 
     return {
@@ -318,8 +332,9 @@ export default function App() {
       annotation,
       why,
       concept,
+      jev,
     };
-  }, [currentMove, settings.toggleMoveAnnotations]);
+  }, [currentMove, settings.toggleMoveAnnotations, evaluation.jevAnalysis, evaluation.imprint]);
 
   // Arrow calculations bound to settings.bestMoveArrow and Stockfish bestMove
   const arrowPoints = useMemo(() => {
@@ -641,10 +656,49 @@ export default function App() {
                 {settings.showComments && (
                   <View style={styles.cognitiveCard}>
                     <View style={styles.cognitiveCardHeader}>
-                      <Text style={styles.cognitiveHeaderTitle}>🧠 Grounded Coach</Text>
-                      <Text style={styles.cognitiveConceptTag}>{cognitiveInsight.concept}</Text>
+                      <Text style={styles.cognitiveHeaderTitle}>🧠 JEV System-1 Cognitive OS</Text>
+                      <View style={styles.cognitiveConceptPill}>
+                        <Text style={styles.cognitiveConceptTag}>{cognitiveInsight.concept}</Text>
+                      </View>
                     </View>
-                    <Text style={styles.cognitiveBodyText}>{cognitiveInsight.why}</Text>
+
+                    {/* JEV Core Idea Banner */}
+                    <View style={styles.jevCoreIdeaBanner}>
+                      <Text style={styles.jevCoreIdeaLabel}>⚡ JEV Core Idea</Text>
+                      <Text style={styles.jevCoreIdeaText}>
+                        {cognitiveInsight.jev?.coreIdea || cognitiveInsight.why}
+                      </Text>
+                    </View>
+
+                    {/* Invariant Extraction Breakdown */}
+                    {cognitiveInsight.jev && (
+                      <View style={styles.jevPrimitivesContainer}>
+                        <View style={styles.jevPrimitiveRow}>
+                          <Text style={styles.jevPrimitiveKey}>🎯 Threat:</Text>
+                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.threat}</Text>
+                        </View>
+                        <View style={styles.jevPrimitiveRow}>
+                          <Text style={styles.jevPrimitiveKey}>🔒 Constraint:</Text>
+                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.constraint}</Text>
+                        </View>
+                        <View style={styles.jevPrimitiveRow}>
+                          <Text style={styles.jevPrimitiveKey}>🔄 Transform:</Text>
+                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.transformation}</Text>
+                        </View>
+                        <View style={styles.jevPrimitiveRow}>
+                          <Text style={styles.jevPrimitiveKey}>🔗 Dependency:</Text>
+                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.dependency}</Text>
+                        </View>
+                        <View style={styles.jevPrimitiveRow}>
+                          <Text style={styles.jevPrimitiveKey}>💎 Invariant:</Text>
+                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.invariant}</Text>
+                        </View>
+                        <View style={styles.jevPrimitiveRow}>
+                          <Text style={styles.jevPrimitiveKey}>⚠️ Failure If:</Text>
+                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.failureCondition}</Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 )}
 
@@ -1591,17 +1645,71 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   cognitiveHeaderTitle: {
     fontSize: 12,
     fontWeight: '800',
     color: '#1E293B',
   },
+  cognitiveConceptPill: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
   cognitiveConceptTag: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     color: '#2563EB',
+    textTransform: 'uppercase',
+  },
+  jevCoreIdeaBanner: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3B82F6',
+    marginBottom: 8,
+  },
+  jevCoreIdeaLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1D4ED8',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  jevCoreIdeaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0F172A',
+    lineHeight: 16,
+  },
+  jevPrimitivesContainer: {
+    backgroundColor: 'rgba(241, 245, 249, 0.65)',
+    borderRadius: 8,
+    padding: 6,
+  },
+  jevPrimitiveRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  jevPrimitiveKey: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#475569',
+    width: 78,
+  },
+  jevPrimitiveVal: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#1E293B',
+    lineHeight: 14,
   },
   cognitiveBodyText: {
     fontSize: 11,

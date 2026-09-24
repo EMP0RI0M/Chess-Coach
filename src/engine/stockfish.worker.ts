@@ -3,6 +3,7 @@ import { rustEngineBridge } from './rustWasmEngine';
 import { jevCognitiveFilter, JevVisualImprint } from './jevFilter';
 import { superCache } from './superCache';
 import { chessApiService } from './chessApiService';
+import { jevInvariantExtractor, JevVariationAnalysis } from './jevInvariantExtractor';
 import { Chess } from 'chess.js';
 
 export interface WorkerMessage {
@@ -23,6 +24,7 @@ export interface WorkerResponse {
     pvLine: string;
     imprint?: JevVisualImprint;
     topMoves?: CandidateMove[];
+    jevAnalysis?: JevVariationAnalysis;
   };
   error?: string;
 }
@@ -104,6 +106,7 @@ class StockfishWorkerController {
 
         // 3. High-confidence fast policy bypass (<3ms forward pass)
         if (jevDecision.isObviousMove && jevDecision.policyMove) {
+          const quickJevAnalysis = jevInvariantExtractor.extract(fen, [jevDecision.policyMove], staticScore);
           superCache.set(
             fen,
             jevDecision.policyMove,
@@ -121,6 +124,7 @@ class StockfishWorkerController {
               depth: 1,
               pvLine: `⚡ Jev Fast-Policy: ${jevDecision.cognitiveInsight}`,
               imprint: jevDecision.imprint,
+              jevAnalysis: quickJevAnalysis,
             },
           });
           return;
@@ -154,6 +158,7 @@ class StockfishWorkerController {
                 pvLine: `🦆 SF18: ${cloudResult.pvLine}`,
                 imprint: initialJevImprint,
                 topMoves: cloudResult.topMoves,
+                jevAnalysis: cloudResult.jevAnalysis,
               },
             });
           } else {
@@ -184,6 +189,9 @@ class StockfishWorkerController {
           ? `${searchResult.bestMove.from}${searchResult.bestMove.to}`
           : null;
         const pvStr = searchResult.bestMove ? searchResult.bestMove.san : '';
+        const localJevAnalysis = bestMoveLan 
+          ? jevInvariantExtractor.extract(fen, [bestMoveLan], searchResult.scoreCp) 
+          : undefined;
 
         superCache.set(
           fen,
@@ -203,6 +211,7 @@ class StockfishWorkerController {
             pvLine: pvStr,
             imprint,
             topMoves: searchResult.topMoves,
+            jevAnalysis: localJevAnalysis,
           },
         });
       } catch (err: any) {

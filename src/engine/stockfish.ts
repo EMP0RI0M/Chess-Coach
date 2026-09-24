@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createStockfishWorker } from './stockfish.worker';
 import { JevVisualImprint } from './jevFilter';
 import { CandidateMove } from './androidChessEngine';
+import { JevVariationAnalysis } from './jevInvariantExtractor';
 
 export interface EngineEvaluation {
   depth: number;
@@ -12,6 +13,7 @@ export interface EngineEvaluation {
   isCalculating: boolean;
   imprint?: JevVisualImprint;
   topMoves?: CandidateMove[];
+  jevAnalysis?: JevVariationAnalysis;
 }
 
 export function useStockfishEngine() {
@@ -51,6 +53,7 @@ export function useStockfishEngine() {
             scoreCp: event.data!.scoreCp,
             imprint: event.data!.imprint,
             topMoves: event.data!.topMoves || prev.topMoves,
+            jevAnalysis: event.data!.jevAnalysis || prev.jevAnalysis,
           }));
         }
       } else if (event.type === 'MOVE_FOUND' && event.data) {
@@ -65,6 +68,7 @@ export function useStockfishEngine() {
           isCalculating: false,
           imprint: event.data.imprint,
           topMoves: event.data.topMoves || [],
+          jevAnalysis: event.data.jevAnalysis,
         });
       }
     });

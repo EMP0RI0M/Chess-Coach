@@ -6,6 +6,7 @@
  */
 
 import { CandidateMove } from './androidChessEngine';
+import { jevInvariantExtractor, JevVariationAnalysis } from './jevInvariantExtractor';
 
 export interface ChessApiResponse {
   text: string;
@@ -76,6 +77,7 @@ class ChessApiService {
     pvLine: string;
     topMoves: CandidateMove[];
     winChance: number;
+    jevAnalysis?: JevVariationAnalysis;
   } | null> {
     const taskId = Math.random().toString(36).substring(2, 9);
     this.currentTaskId = taskId;
@@ -162,6 +164,12 @@ class ChessApiService {
           }
         }
 
+        // System 1 JEV Invariant Extraction from Stockfish 5-10 Move Variation
+        const continuationMoves = data.continuationArr && data.continuationArr.length > 0
+          ? data.continuationArr
+          : [bestMoveLan];
+        const jevAnalysis = jevInvariantExtractor.extract(fen, continuationMoves, scoreCp);
+
         return {
           scoreCp,
           scoreMate: data.mate,
@@ -170,6 +178,7 @@ class ChessApiService {
           pvLine: (data.continuationArr || []).slice(0, 4).join(' ') || data.text,
           topMoves,
           winChance: data.winChance || 50,
+          jevAnalysis,
         };
       }
     } catch {
