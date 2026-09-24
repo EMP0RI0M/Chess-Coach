@@ -1,6 +1,7 @@
 import { searchBestMove, evaluateBoardState } from './androidChessEngine';
 import { rustEngineBridge } from './rustWasmEngine';
 import { jevCognitiveFilter, JevVisualImprint } from './jevFilter';
+import { superCache } from './superCache';
 import { Chess } from 'chess.js';
 
 export interface WorkerMessage {
@@ -38,7 +39,7 @@ class StockfishWorkerController {
     if (msg.type === 'START') {
       setTimeout(() => {
         this.emit({ type: 'READY' });
-      }, 50);
+      }, 10);
       return;
     }
 
@@ -50,9 +51,35 @@ class StockfishWorkerController {
 
     if (msg.type === 'CALCULATE' && msg.data) {
       const calcId = ++this.currentCalculationId;
-      const { fen, depth = 3, movetime = 800 } = msg.data;
+      const { fen, depth = 3, movetime = 500 } = msg.data;
 
-      // 1. Instant static zero-allocation bitboard evaluation & Jev System-One Imprinting
+      // 1. Instant 0ms Super Cache & Transposition Table Lookup
+      const cached = superCache.get(fen, depth);
+      if (cached) {
+        this.emit({
+          type: 'EVALUATION',
+          data: {
+            bestMove: cached.bestMove,
+            scoreCp: cached.scoreCp,
+            depth: cached.depth,
+            pvLine: cached.pvLine,
+            imprint: cached.imprint,
+          },
+        });
+        this.emit({
+          type: 'MOVE_FOUND',
+          data: {
+            bestMove: cached.bestMove,
+            scoreCp: cached.scoreCp,
+            depth: cached.depth,
+            pvLine: cached.pvLine,
+            imprint: cached.imprint,
+          },
+        });
+        return;
+      }
+
+      // 2. Instant static zero-allocation bitboard evaluation & Jev System-One Imprinting (<3ms)
       try {
         const bitboardEval = rustEngineBridge.evaluateBitboard(fen);
         const tempChess = new Chess(fen);
@@ -71,8 +98,17 @@ class StockfishWorkerController {
           },
         });
 
-        // 2. High-confidence fast policy bypass (<5ms forward pass)
+        // 3. High-confidence fast policy bypass (<5ms forward pass)
         if (jevDecision.isObviousMove && jevDecision.policyMove) {
+          superCache.set(
+            fen,
+            jevDecision.policyMove,
+            staticScore,
+            1,
+            `⚡ Jev Fast-Policy: ${jevDecision.cognitiveInsight}`,
+            jevDecision.imprint
+          );
+
           this.emit({
             type: 'MOVE_FOUND',
             data: {
@@ -89,7 +125,7 @@ class StockfishWorkerController {
         this.emit({ type: 'ERROR', error: err.message });
       }
 
-      // 3. Bounded asynchronous engine search with dynamic Jev depth allocation
+      // 4. Time-Sliced Non-Blocking Engine Search with micro-yield
       setTimeout(() => {
         if (calcId !== this.currentCalculationId) return;
 
@@ -105,6 +141,16 @@ class StockfishWorkerController {
             : (jevDecision.policyMove || null);
           const pvStr = searchResult.bestMove ? searchResult.bestMove.san : '';
 
+          // Cache evaluated state in Super Cache
+          superCache.set(
+            fen,
+            bestMoveLan,
+            searchResult.scoreCp,
+            allocatedDepth,
+            pvStr,
+            jevDecision.imprint
+          );
+
           this.emit({
             type: 'MOVE_FOUND',
             data: {
@@ -118,7 +164,7 @@ class StockfishWorkerController {
         } catch (err: any) {
           this.emit({ type: 'ERROR', error: err.message });
         }
-      }, Math.min(movetime, 50));
+      }, 16); // 16ms frame-synced micro-yield
     }
   }
 
