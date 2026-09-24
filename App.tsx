@@ -14,7 +14,10 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Chess, Square, Move } from 'chess.js';
-import { ChessBoardView } from './components/ChessBoardView';
+import { useStockfishEngine } from './src/engine/stockfish';
+import { identifyEco } from './src/engine/ecoService';
+import { DAILY_PUZZLES, ChessPuzzle } from './src/engine/puzzleService';
+import { ChessBoardView } from './src/components/ChessBoardView';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import {
   Menu,
@@ -47,9 +50,6 @@ import {
   ArrowLeft,
   Trophy,
 } from 'lucide-react-native';
-import { useStockfishEngine } from './services/stockfish';
-import { identifyEco } from './services/ecoService';
-import { DAILY_PUZZLES, ChessPuzzle } from './services/puzzleService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BASE_BOARD_SIZE = Math.min(SCREEN_WIDTH - 28, 380);
