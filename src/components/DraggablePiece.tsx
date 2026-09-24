@@ -76,42 +76,46 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
         const deltaRow = Math.round(event.translationY / squareSize);
         const distanceSq = event.translationX * event.translationX + event.translationY * event.translationY;
 
-        // Immediate snap-back on native UI thread
-        translateX.value = withSpring(0, SPRING_CONFIG);
-        translateY.value = withSpring(0, SPRING_CONFIG);
         scale.value = withSpring(1, SPRING_CONFIG);
         zIndex.value = 1;
 
-        if (distanceSq < 64) {
+        if (distanceSq < 36 || (deltaCol === 0 && deltaRow === 0)) {
+          translateX.value = withSpring(0, SPRING_CONFIG);
+          translateY.value = withSpring(0, SPRING_CONFIG);
           runOnJS(onSelectSquare)(square);
           return;
         }
 
-        if (deltaCol !== 0 || deltaRow !== 0) {
-          const fileChar = square[0];
-          const rankNum = parseInt(square[1], 10);
+        const fileChar = square[0];
+        const rankNum = parseInt(square[1], 10);
+        const colIndex = fileChar.charCodeAt(0) - 97;
+        const rowIndex = rankNum - 1;
 
-          const colIndex = fileChar.charCodeAt(0) - 97;
-          const rowIndex = rankNum - 1;
+        let targetCol: number;
+        let targetRow: number;
 
-          let targetCol: number;
-          let targetRow: number;
+        if (isWhiteOrientation) {
+          targetCol = colIndex + deltaCol;
+          targetRow = rowIndex - deltaRow;
+        } else {
+          targetCol = colIndex - deltaCol;
+          targetRow = rowIndex + deltaRow;
+        }
 
-          if (isWhiteOrientation) {
-            targetCol = colIndex + deltaCol;
-            targetRow = rowIndex - deltaRow;
-          } else {
-            targetCol = colIndex - deltaCol;
-            targetRow = rowIndex + deltaRow;
-          }
+        if (targetCol >= 0 && targetCol <= 7 && targetRow >= 0 && targetRow <= 7) {
+          // Snap directly to the target grid position without springing back
+          translateX.value = deltaCol * squareSize;
+          translateY.value = deltaRow * squareSize;
 
-          if (targetCol >= 0 && targetCol <= 7 && targetRow >= 0 && targetRow <= 7) {
-            const targetFile = String.fromCharCode(97 + targetCol);
-            const targetRank = (targetRow + 1).toString();
-            const targetSquare = `${targetFile}${targetRank}` as Square;
+          const targetFile = String.fromCharCode(97 + targetCol);
+          const targetRank = (targetRow + 1).toString();
+          const targetSquare = `${targetFile}${targetRank}` as Square;
 
-            runOnJS(onDropMove)(square, targetSquare);
-          }
+          runOnJS(onDropMove)(square, targetSquare);
+        } else {
+          // Out of bounds drop -> snap back to start
+          translateX.value = withSpring(0, SPRING_CONFIG);
+          translateY.value = withSpring(0, SPRING_CONFIG);
         }
       });
 
