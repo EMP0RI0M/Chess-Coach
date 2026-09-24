@@ -38,6 +38,7 @@ import {
   Sliders,
   Sparkles,
   ChevronRight,
+  ArrowUpDown,
 } from 'lucide-react-native';
 import { useStockfishEngine } from './services/stockfish';
 
@@ -583,9 +584,9 @@ export default function App() {
             )}
           </ScrollView>
 
-          {/* 5. Bottom Pill-Shaped Navbar (5 Meaningful Action Buttons) */}
+          {/* 5. Bottom Pill-Shaped Navbar (5 Pure Icon-Only Buttons) */}
           <View style={styles.bottomNebba}>
-            {/* 1. Menu (☰) */}
+            {/* 1. Three-line Menu (☰) */}
             <TouchableOpacity
               style={styles.nebbaButton}
               activeOpacity={0.7}
@@ -594,25 +595,33 @@ export default function App() {
               <Menu size={20} color="#1E293B" strokeWidth={2.2} />
             </TouchableOpacity>
 
-            {/* 2. Settings (⚙) */}
+            {/* 2. Flip Board (⇅) */}
             <TouchableOpacity
               style={styles.nebbaButton}
               activeOpacity={0.7}
-              onPress={() => setIsSettingsOpen(true)}
+              onPress={handleFlipBoard}
             >
-              <SettingsIcon size={20} color="#1E293B" strokeWidth={2.2} />
+              <ArrowUpDown size={20} color="#1E293B" strokeWidth={2.2} />
             </TouchableOpacity>
 
-            {/* 3. Hero Cognitive Coach Button (🧠) */}
+            {/* 3. Stockfish Engine Processor / Coach (⚙ / 🧠 / Cpu) */}
             <TouchableOpacity
-              style={[styles.nebbaButton, styles.nebbaHeroButton]}
+              style={[styles.nebbaButton, styles.nebbaHeroButton, !settings.stockfishEnabled && styles.nebbaHeroButtonInactive]}
               activeOpacity={0.8}
-              onPress={() => setSettings((prev) => ({ ...prev, showComments: !prev.showComments }))}
+              onPress={() => {
+                const nextState = !settings.stockfishEnabled;
+                setSettings((prev) => ({ ...prev, stockfishEnabled: nextState }));
+                if (nextState) {
+                  evaluatePosition(chess.fen(), 15);
+                } else {
+                  stopEvaluation();
+                }
+              }}
             >
-              <Brain size={22} color="#FFFFFF" strokeWidth={2.3} />
+              <Cpu size={22} color="#FFFFFF" strokeWidth={2.3} />
             </TouchableOpacity>
 
-            {/* 4. Undo (↶) */}
+            {/* 4. Undo / Back (↶) */}
             <TouchableOpacity
               style={[styles.nebbaButton, currentMoveIndex < 0 && styles.nebbaButtonDisabled]}
               activeOpacity={0.7}
@@ -622,7 +631,7 @@ export default function App() {
               <Undo2 size={20} color="#1E293B" strokeWidth={2.2} />
             </TouchableOpacity>
 
-            {/* 5. Redo (↷) */}
+            {/* 5. Redo / Forward (↷) */}
             <TouchableOpacity
               style={[styles.nebbaButton, currentMoveIndex >= historyMoves.length - 1 && styles.nebbaButtonDisabled]}
               activeOpacity={0.7}
@@ -1414,6 +1423,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 4,
+  },
+  nebbaHeroButtonInactive: {
+    backgroundColor: '#94A3B8',
+    borderColor: '#64748B',
+    shadowOpacity: 0.1,
   },
   nebbaButtonDisabled: {
     opacity: 0.35,

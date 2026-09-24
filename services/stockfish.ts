@@ -67,7 +67,6 @@ export function useStockfishEngine() {
 
   // Initialize Native Engine if available
   useEffect(() => {
-    let cleanupFn: (() => void) | null = null;
     try {
       const stockfishLib = require('@loloof64/react-native-stockfish');
       if (stockfishLib && stockfishLib.useStockfish) {
@@ -78,9 +77,6 @@ export function useStockfishEngine() {
       // Fallback mode for web/Expo Go previews
       setEngineReady(false);
     }
-    return () => {
-      if (cleanupFn) cleanupFn();
-    };
   }, []);
 
   // Send FEN position to Stockfish for real evaluation

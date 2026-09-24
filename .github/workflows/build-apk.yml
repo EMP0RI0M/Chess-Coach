@@ -25,14 +25,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: 🤖 Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: 📦 Install Dependencies
         run: |
-          npm ci || npm install
+          npm install
 
       - name: ⚙️ Expo Prebuild (Generate Android Native Project)
         run: |
