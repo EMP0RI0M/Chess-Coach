@@ -167,13 +167,20 @@ export default function App() {
     return identifyEco(sans);
   }, [historyMoves, currentMoveIndex]);
 
-  // Synchronize evaluation when FEN changes
+  // Synchronize evaluation when FEN changes with 250ms non-blocking debounce
   useEffect(() => {
     if (engineActive && settings.stockfishEnabled) {
       const depth = Math.min(Math.max(settings.cpuThreads >= 4 ? 3 : 2, 2), 3);
-      evaluatePosition(fen, depth);
+      const timer = setTimeout(() => {
+        evaluatePosition(fen, depth);
+      }, 250);
+
+      return () => {
+        clearTimeout(timer);
+        stopEvaluation();
+      };
     }
-  }, [fen, engineActive, settings.stockfishEnabled, settings.cpuThreads, evaluatePosition]);
+  }, [fen, engineActive, settings.stockfishEnabled, settings.cpuThreads, evaluatePosition, stopEvaluation]);
 
   // Trigger Cross-Modal Sensory Audio Anchoring Loop
   useEffect(() => {
@@ -518,6 +525,7 @@ export default function App() {
               {/* 2. Interactive Chessboard with Reanimated 60 FPS Native Gestures */}
               <ChessBoardView
                 chess={chess}
+                fen={fen}
                 boardSize={boardSize}
                 isWhiteOrientation={isWhiteOrientation}
                 selectedSquare={selectedSquare}

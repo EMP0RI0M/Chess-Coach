@@ -8,6 +8,7 @@ import { JevVisualImprint } from '../engine/jevFilter';
 
 interface ChessBoardViewProps {
   chess: Chess;
+  fen?: string;
   boardSize: number;
   isWhiteOrientation: boolean;
   selectedSquare: Square | null;
@@ -50,6 +51,7 @@ function getSquareCoords(sq: string, isWhiteOrientation: boolean, squareSize: nu
 export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
   ({
     chess,
+    fen,
     boardSize,
     isWhiteOrientation,
     selectedSquare,
@@ -84,8 +86,8 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
     }
     const topBarHeightPercent = isWhiteOrientation ? 100 - whitePercentage : whitePercentage;
 
-    // Fast O(1) Matrix Board Extraction
-    const boardMatrix = React.useMemo(() => chess.board(), [chess]);
+    // Fast O(1) Matrix Board Extraction - Always fresh for current position
+    const boardMatrix = chess.board();
 
     // Vector Clamp Ray calculation from Jev System-1
     const vectorClampPoints = React.useMemo(() => {
