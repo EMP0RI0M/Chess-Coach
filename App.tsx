@@ -538,7 +538,8 @@ export default function App() {
                 isEditorActive={isBoardEditorOpen}
                 boardTheme={settings.boardTheme}
                 pieceTheme={settings.pieceTheme}
-                sideEvalScore={{ cp: evaluation.scoreCp, mate: evaluation.scoreMate }}
+                sideEvalCp={evaluation.scoreCp}
+                sideEvalMate={evaluation.scoreMate}
                 showSideEvalBar={settings.showSideEvalBar}
                 jevImprint={evaluation.imprint}
               />

@@ -22,7 +22,8 @@ interface ChessBoardViewProps {
   isEditorActive?: boolean;
   boardTheme?: BoardTheme;
   pieceTheme?: PieceTheme;
-  sideEvalScore?: { cp: number | null; mate: number | null };
+  sideEvalCp?: number | null;
+  sideEvalMate?: number | null;
   showSideEvalBar?: boolean;
   jevImprint?: JevVisualImprint;
 }
@@ -36,7 +37,7 @@ const BOARD_THEME_COLORS: Record<BoardTheme, { light: string; dark: string }> = 
 };
 
 function getSquareCoords(sq: string, isWhiteOrientation: boolean, squareSize: number) {
-  const file = sq.charCodeAt(0) - 'a'.charCodeAt(0);
+  const file = sq.charCodeAt(0) - 97; // 'a' -> 0
   const rank = parseInt(sq[1], 10) - 1;
   const col = isWhiteOrientation ? file : 7 - file;
   const row = isWhiteOrientation ? 7 - rank : rank;
@@ -63,34 +64,39 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
     isEditorActive = false,
     boardTheme = 'Classic Wood',
     pieceTheme = 'Vector Neo',
-    sideEvalScore,
+    sideEvalCp,
+    sideEvalMate,
     showSideEvalBar = true,
     jevImprint,
   }) => {
     const squareSize = boardSize / 8;
-    const ranks = isWhiteOrientation ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
-    const files = isWhiteOrientation ? ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] : ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'];
+    const ranks = React.useMemo(() => isWhiteOrientation ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8], [isWhiteOrientation]);
+    const files = React.useMemo(() => isWhiteOrientation ? ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] : ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'], [isWhiteOrientation]);
     const themeColors = BOARD_THEME_COLORS[boardTheme] || BOARD_THEME_COLORS['Classic Wood'];
 
     // Side Evaluation Bar Fill Calculation
     let whitePercentage = 50;
-    if (sideEvalScore) {
-      if (sideEvalScore.mate !== null) {
-        whitePercentage = sideEvalScore.mate > 0 ? 98 : 2;
-      } else if (sideEvalScore.cp !== null) {
-        const clampedCp = Math.max(-10, Math.min(10, sideEvalScore.cp));
-        whitePercentage = 50 + (clampedCp / 10) * 45;
-      }
+    if (sideEvalMate !== undefined && sideEvalMate !== null) {
+      whitePercentage = sideEvalMate > 0 ? 98 : 2;
+    } else if (sideEvalCp !== undefined && sideEvalCp !== null) {
+      const clampedCp = Math.max(-10, Math.min(10, sideEvalCp));
+      whitePercentage = 50 + (clampedCp / 10) * 45;
     }
     const topBarHeightPercent = isWhiteOrientation ? 100 - whitePercentage : whitePercentage;
 
+    // Fast O(1) Matrix Board Extraction
+    const boardMatrix = React.useMemo(() => chess.board(), [chess]);
+
     // Vector Clamp Ray calculation from Jev System-1
-    const vectorClampPoints = jevImprint?.vectorClampLine
-      ? {
-          from: getSquareCoords(jevImprint.vectorClampLine.from, isWhiteOrientation, squareSize),
-          to: getSquareCoords(jevImprint.vectorClampLine.to, isWhiteOrientation, squareSize),
-        }
-      : null;
+    const vectorClampPoints = React.useMemo(() => {
+      if (!jevImprint?.vectorClampLine) return null;
+      return {
+        from: getSquareCoords(jevImprint.vectorClampLine.from, isWhiteOrientation, squareSize),
+        to: getSquareCoords(jevImprint.vectorClampLine.to, isWhiteOrientation, squareSize),
+      };
+    }, [jevImprint?.vectorClampLine, isWhiteOrientation, squareSize]);
+
+    const activeTurn = chess.turn();
 
     return (
       <View style={styles.boardWithSideBarWrapper}>
@@ -113,14 +119,16 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
               <View key={rank} style={[styles.row, { height: squareSize }]}>
                 {files.map((file, fIdx) => {
                   const squareName = `${file}${rank}` as Square;
-                  const piece = chess.get(squareName);
+                  const matrixRow = 8 - rank;
+                  const matrixCol = file.charCodeAt(0) - 97;
+                  const piece = boardMatrix[matrixRow] ? boardMatrix[matrixRow][matrixCol] : null;
                   const isLight = (rIdx + fIdx) % 2 === 0;
                   const isSelected = selectedSquare === squareName;
                   const isTarget = possibleMoves.includes(squareName);
                   const isLastMoveSquare =
                     lastMove?.from === squareName || lastMove?.to === squareName;
                   const isHero = heroSquare === squareName;
-                  const isThreat = threatsEnabled && piece && piece.color !== chess.turn();
+                  const isThreat = threatsEnabled && piece && piece.color !== activeTurn;
                   const isJevCritical = jevImprint && jevImprint.criticalSquare === squareName;
                   const jevGlowColor = jevImprint?.uiColorOverlay || '#EF4444';
 
