@@ -135,7 +135,7 @@ class ChessApiService {
           },
         ];
 
-        // If continuation array exists, map next variations
+        // If continuation array exists, map 2nd and 3rd rank variations
         if (data.continuationArr && data.continuationArr.length >= 2) {
           const move2 = data.continuationArr[1];
           if (move2 && move2.length >= 4) {
@@ -143,8 +143,21 @@ class ChessApiService {
               from: move2.substring(0, 2),
               to: move2.substring(2, 4),
               san: move2,
-              scoreCp: scoreCp - 0.2,
+              scoreCp: scoreCp - 0.25,
               rank: 2,
+            });
+          }
+        }
+
+        if (data.continuationArr && data.continuationArr.length >= 3) {
+          const move3 = data.continuationArr[2];
+          if (move3 && move3.length >= 4) {
+            topMoves.push({
+              from: move3.substring(0, 2),
+              to: move3.substring(2, 4),
+              san: move3,
+              scoreCp: scoreCp - 0.55,
+              rank: 3,
             });
           }
         }
