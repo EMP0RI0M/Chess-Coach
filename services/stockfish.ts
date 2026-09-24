@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Chess } from 'chess.js';
+import { searchBestMove, evaluateBoardState } from './androidChessEngine';
 
-// Type definition for Stockfish analysis results
+// Type definition for Chess analysis results
 export interface EngineEvaluation {
   depth: number;
   scoreCp: number | null; // Centipawns (positive = white advantage)
@@ -20,142 +22,52 @@ export function useStockfishEngine() {
     isCalculating: false,
   });
 
-  const [engineReady, setEngineReady] = useState(false);
-  const stockfishLoopRef = useRef<(() => void) | null>(null);
-  const stopStockfishRef = useRef<(() => void) | null>(null);
+  const [engineReady, setEngineReady] = useState(true);
   const sendCommandRef = useRef<((cmd: string) => void) | null>(null);
 
-  // Parse raw UCI output stream (e.g., "info depth 12 score cp 45 pv e2e4 e7e5")
-  const parseUciOutput = useCallback((output: string) => {
-    const lines = output.split('\n');
-    for (const line of lines) {
-      if (line.startsWith('info') && line.includes('score')) {
-        let cp: number | null = null;
-        let mate: number | null = null;
-        let depth = 0;
-        let pv = '';
-
-        const depthMatch = line.match(/depth (\d+)/);
-        if (depthMatch) depth = parseInt(depthMatch[1], 10);
-
-        const cpMatch = line.match(/score cp (-?\d+)/);
-        if (cpMatch) cp = parseInt(cpMatch[1], 10);
-
-        const mateMatch = line.match(/score mate (-?\d+)/);
-        if (mateMatch) mate = parseInt(mateMatch[1], 10);
-
-        const pvMatch = line.match(/pv (.+)/);
-        if (pvMatch) pv = pvMatch[1];
-
-        setEvaluation((prev) => ({
-          ...prev,
-          depth,
-          scoreCp: cp !== null ? cp / 100 : prev.scoreCp,
-          scoreMate: mate,
-          pvLine: pv || prev.pvLine,
-          isCalculating: true,
-        }));
-      } else if (line.startsWith('bestmove')) {
-        const bestMoveMatch = line.match(/bestmove (\w+)/);
-        const bestMove = bestMoveMatch ? bestMoveMatch[1] : null;
-        setEvaluation((prev) => ({
-          ...prev,
-          bestMove,
-          isCalculating: false,
-        }));
-      }
-    }
-  }, []);
-
-  // Initialize Native Engine loop and subscribe to outputs on component mount
-  useEffect(() => {
-    let cancelOutputSub: (() => void) | null = null;
-    let cancelErrorSub: (() => void) | null = null;
-
-    try {
-      const stockfishLib = require('@loloof64/react-native-stockfish');
-      const NativeStockfish = stockfishLib.default || stockfishLib;
-
-      if (NativeStockfish && NativeStockfish.stockfishLoop) {
-        NativeStockfish.stockfishLoop();
-        stockfishLoopRef.current = NativeStockfish.stockfishLoop;
-        stopStockfishRef.current = NativeStockfish.stopStockfish;
-        sendCommandRef.current = NativeStockfish.sendCommandToStockfish;
-        setEngineReady(true);
-
-        if (stockfishLib._subscribeToStockfishOutput) {
-          cancelOutputSub = stockfishLib._subscribeToStockfishOutput((output: string) => {
-            parseUciOutput(output);
-          });
-        }
-        if (stockfishLib._subscribeToStockfishError) {
-          cancelErrorSub = stockfishLib._subscribeToStockfishError((err: string) => {
-            console.warn('Stockfish native error:', err);
-          });
-        }
-
-        setTimeout(() => {
-          if (sendCommandRef.current) {
-            sendCommandRef.current('uci');
-            sendCommandRef.current('isready');
-          }
-        }, 300);
-      }
-    } catch (err) {
-      setEngineReady(false);
-    }
-
-    return () => {
-      if (cancelOutputSub) cancelOutputSub();
-      if (cancelErrorSub) cancelErrorSub();
-      if (stopStockfishRef.current) {
-        try {
-          stopStockfishRef.current();
-        } catch {
-          // ignore
-        }
-      }
-    };
-  }, [parseUciOutput]);
-
-  // Send FEN position to Stockfish for real evaluation
+  // Send FEN position to Engine for evaluation (uses ported android-chess evaluation + search algorithm)
   const evaluatePosition = useCallback(
-    (fen: string, depth = 15) => {
+    (fen: string, depth = 3) => {
       setEvaluation((prev) => ({ ...prev, isCalculating: true }));
 
-      if (sendCommandRef.current) {
+      // Run computation asynchronously to avoid blocking UI frame
+      setTimeout(() => {
         try {
-          sendCommandRef.current('stop');
-          sendCommandRef.current(`position fen ${fen}`);
-          sendCommandRef.current(`go depth ${depth}`);
-          return;
-        } catch (err) {
-          console.warn('Error sending command to Stockfish:', err);
-        }
-      }
+          const tempChess = new Chess(fen);
+          if (tempChess.isCheckmate()) {
+            const mateIn = tempChess.turn() === 'w' ? -1 : 1;
+            setEvaluation({
+              depth: 1,
+              scoreCp: null,
+              scoreMate: mateIn,
+              bestMove: null,
+              pvLine: 'Checkmate',
+              isCalculating: false,
+            });
+            return;
+          }
 
-      // Safe heuristic calculation for non-native environments
-      const isBlackTurn = fen.includes(' b ');
-      const fallbackCp = isBlackTurn ? -0.15 : 0.25;
-      setEvaluation((prev) => ({
-        ...prev,
-        depth,
-        scoreCp: fallbackCp,
-        scoreMate: null,
-        isCalculating: false,
-      }));
+          const searchResult = searchBestMove(tempChess, depth > 4 ? 4 : depth);
+          const bestMoveLan = searchResult.bestMove ? `${searchResult.bestMove.from}${searchResult.bestMove.to}` : null;
+          const pvStr = searchResult.bestMove ? searchResult.bestMove.san : '';
+
+          setEvaluation({
+            depth: depth > 4 ? 4 : depth,
+            scoreCp: searchResult.scoreCp,
+            scoreMate: null,
+            bestMove: bestMoveLan,
+            pvLine: pvStr,
+            isCalculating: false,
+          });
+        } catch {
+          setEvaluation((prev) => ({ ...prev, isCalculating: false }));
+        }
+      }, 10);
     },
     []
   );
 
   const stopEvaluation = useCallback(() => {
-    if (sendCommandRef.current) {
-      try {
-        sendCommandRef.current('stop');
-      } catch {
-        // ignore
-      }
-    }
     setEvaluation((prev) => ({ ...prev, isCalculating: false }));
   }, []);
 
@@ -164,6 +76,5 @@ export function useStockfishEngine() {
     evaluation,
     evaluatePosition,
     stopEvaluation,
-    parseUciOutput,
   };
 }
