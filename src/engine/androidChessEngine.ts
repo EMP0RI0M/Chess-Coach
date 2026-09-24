@@ -207,6 +207,23 @@ export function searchBestMove(
   };
 }
 
+function scoreMoveHeuristic(m: Move): number {
+  let score = 0;
+  if (m.captured) {
+    score += 1000 + ((PIECE_VALUES[m.captured] || 100) * 10 - (PIECE_VALUES[m.piece] || 100));
+  }
+  if (m.san.includes('+')) {
+    score += 500;
+  }
+  if (m.promotion) {
+    score += 800;
+  }
+  if (['e4', 'd4', 'e5', 'd5', 'c4', 'f4', 'c5', 'f5'].includes(m.to)) {
+    score += 40;
+  }
+  return score;
+}
+
 function alphaBeta(
   chess: Chess,
   depth: number,
@@ -219,17 +236,20 @@ function alphaBeta(
   }
 
   const moves = chess.moves({ verbose: true }) as Move[];
+  if (moves.length === 0) {
+    return evaluateBoardState(chess);
+  }
 
-  // Move ordering
-  moves.sort((a, b) => {
-    const aCapture = a.captured ? PIECE_VALUES[a.captured] || 0 : 0;
-    const bCapture = b.captured ? PIECE_VALUES[b.captured] || 0 : 0;
-    return bCapture - aCapture;
-  });
+  // High-speed heuristic move ordering
+  moves.sort((a, b) => scoreMoveHeuristic(b) - scoreMoveHeuristic(a));
+
+  // Dynamic beam pruning: search top 8 moves at depth 2, top 5 at depth 1
+  const maxBranches = depth > 1 ? 8 : 5;
+  const candidateMoves = moves.length > maxBranches ? moves.slice(0, maxBranches) : moves;
 
   if (isMaximizing) {
     let maxEval = -Infinity;
-    for (const move of moves) {
+    for (const move of candidateMoves) {
       chess.move(move);
       const evaluation = alphaBeta(chess, depth - 1, alpha, beta, false);
       chess.undo();
@@ -240,7 +260,7 @@ function alphaBeta(
     return maxEval;
   } else {
     let minEval = Infinity;
-    for (const move of moves) {
+    for (const move of candidateMoves) {
       chess.move(move);
       const evaluation = alphaBeta(chess, depth - 1, alpha, beta, true);
       chess.undo();
