@@ -343,6 +343,33 @@ export default function App() {
     return null;
   }, [evaluation.bestMove, lastMove, isWhiteOrientation, settings.bestMoveArrow, squareSize]);
 
+  // Ranked Multi-Variation Move Arrows (Best = Green, 2nd = Dark Grey, 3rd = Muted Slate)
+  const multiMoveArrows = useMemo(() => {
+    if (!settings.bestMoveArrow) return null;
+
+    if (evaluation.topMoves && evaluation.topMoves.length > 0) {
+      return evaluation.topMoves.map((m) => ({
+        from: getSquareCenter(m.from, isWhiteOrientation, squareSize),
+        to: getSquareCenter(m.to, isWhiteOrientation, squareSize),
+        rank: m.rank,
+      }));
+    }
+
+    if (evaluation.bestMove && evaluation.bestMove.length >= 4) {
+      const fromSq = evaluation.bestMove.substring(0, 2);
+      const toSq = evaluation.bestMove.substring(2, 4);
+      return [
+        {
+          from: getSquareCenter(fromSq, isWhiteOrientation, squareSize),
+          to: getSquareCenter(toSq, isWhiteOrientation, squareSize),
+          rank: 1 as const,
+        },
+      ];
+    }
+
+    return null;
+  }, [evaluation.topMoves, evaluation.bestMove, isWhiteOrientation, settings.bestMoveArrow, squareSize]);
+
   const ranks = isWhiteOrientation ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
   const files = isWhiteOrientation ? ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] : ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'];
 
@@ -532,6 +559,7 @@ export default function App() {
                 possibleMoves={possibleMoves}
                 lastMove={lastMove}
                 bestMoveArrow={arrowPoints}
+                multiMoveArrows={multiMoveArrows}
                 heroSquare={
                   settings.bestHero
                     ? ((evaluation.bestMove && evaluation.bestMove.length >= 4

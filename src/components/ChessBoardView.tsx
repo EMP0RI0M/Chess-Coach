@@ -6,6 +6,12 @@ import { DraggablePiece } from './DraggablePiece';
 import { BoardTheme, PieceTheme } from '../state/chessStore';
 import { JevVisualImprint } from '../engine/jevFilter';
 
+export interface MultiMoveArrow {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  rank: 1 | 2 | 3;
+}
+
 interface ChessBoardViewProps {
   chess: Chess;
   fen?: string;
@@ -15,6 +21,7 @@ interface ChessBoardViewProps {
   possibleMoves: string[];
   lastMove: { from: string; to: string } | null;
   bestMoveArrow?: { from: { x: number; y: number }; to: { x: number; y: number }; isEngine: boolean } | null;
+  multiMoveArrows?: MultiMoveArrow[] | null;
   heroSquare?: Square | null;
   threatsEnabled?: boolean;
   coordinatesEnabled?: boolean;
@@ -58,6 +65,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
     possibleMoves,
     lastMove,
     bestMoveArrow,
+    multiMoveArrows,
     heroSquare,
     threatsEnabled = false,
     coordinatesEnabled = true,
@@ -252,27 +260,58 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                 />
               )}
 
-              {/* 2. Stockfish / Leela Best Move Arrow */}
-              {bestMoveArrow && (
+              {/* 2. Multi-Variation Candidate Arrows (Best = Green, 2nd = Dark Grey, 3rd = Muted Intensity) */}
+              {multiMoveArrows && multiMoveArrows.length > 0 ? (
+                multiMoveArrows.map((arrow, idx) => {
+                  const isRank1 = arrow.rank === 1;
+                  const isRank2 = arrow.rank === 2;
+                  const color = isRank1 ? '#10B981' : isRank2 ? '#334155' : '#94A3B8';
+                  const strokeWidth = isRank1 ? '6' : isRank2 ? '4.5' : '3';
+                  const opacity = isRank1 ? 0.95 : isRank2 ? 0.75 : 0.5;
+
+                  return (
+                    <React.Fragment key={idx}>
+                      <Line
+                        x1={arrow.from.x}
+                        y1={arrow.from.y}
+                        x2={arrow.to.x}
+                        y2={arrow.to.y}
+                        stroke={color}
+                        strokeWidth={strokeWidth}
+                        strokeOpacity={opacity}
+                        strokeLinecap="round"
+                        strokeDasharray={arrow.rank === 3 ? '6, 4' : undefined}
+                      />
+                      <SvgCircle
+                        cx={arrow.to.x}
+                        cy={arrow.to.y}
+                        r={isRank1 ? '6.5' : isRank2 ? '5' : '4'}
+                        fill={color}
+                        opacity={opacity}
+                      />
+                    </React.Fragment>
+                  );
+                })
+              ) : bestMoveArrow ? (
                 <>
                   <Line
                     x1={bestMoveArrow.from.x}
                     y1={bestMoveArrow.from.y}
                     x2={bestMoveArrow.to.x}
                     y2={bestMoveArrow.to.y}
-                    stroke={bestMoveArrow.isEngine ? '#06B6D4' : 'rgba(255, 255, 255, 0.45)'}
-                    strokeWidth={bestMoveArrow.isEngine ? '5' : '3.5'}
+                    stroke={bestMoveArrow.isEngine ? '#10B981' : 'rgba(255, 255, 255, 0.45)'}
+                    strokeWidth={bestMoveArrow.isEngine ? '6' : '3.5'}
                     strokeLinecap="round"
-                    strokeDasharray={bestMoveArrow.isEngine ? '7, 4' : undefined}
+                    strokeOpacity={0.95}
                   />
                   <SvgCircle
                     cx={bestMoveArrow.to.x}
                     cy={bestMoveArrow.to.y}
-                    r="6"
-                    fill={bestMoveArrow.isEngine ? '#06B6D4' : '#FFFFFF'}
+                    r="6.5"
+                    fill={bestMoveArrow.isEngine ? '#10B981' : '#FFFFFF'}
                   />
                 </>
-              )}
+              ) : null}
             </Svg>
           </View>
         </View>

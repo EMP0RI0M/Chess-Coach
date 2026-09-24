@@ -1,4 +1,4 @@
-import { searchBestMove, evaluateBoardState } from './androidChessEngine';
+import { searchBestMove, evaluateBoardState, CandidateMove } from './androidChessEngine';
 import { rustEngineBridge } from './rustWasmEngine';
 import { jevCognitiveFilter, JevVisualImprint } from './jevFilter';
 import { superCache } from './superCache';
@@ -21,6 +21,7 @@ export interface WorkerResponse {
     depth: number;
     pvLine: string;
     imprint?: JevVisualImprint;
+    topMoves?: CandidateMove[];
   };
   error?: string;
 }
@@ -159,6 +160,7 @@ class StockfishWorkerController {
               depth: allocatedDepth,
               pvLine: pvStr,
               imprint: jevDecision.imprint,
+              topMoves: searchResult.topMoves,
             },
           });
         } catch (err: any) {

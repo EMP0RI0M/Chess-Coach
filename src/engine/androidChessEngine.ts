@@ -138,18 +138,26 @@ export function evaluateBoardState(chess: Chess): number {
   return whiteScore - blackScore;
 }
 
+export interface CandidateMove {
+  from: string;
+  to: string;
+  san: string;
+  scoreCp: number;
+  rank: 1 | 2 | 3;
+}
+
 /**
- * Alpha-Beta Minimax Search (matching android-chess GameSearch engine)
+ * Alpha-Beta Minimax Search (matching android-chess GameSearch engine with Multi-PV)
  */
 export function searchBestMove(
   chess: Chess,
   depth: number = 3
-): { bestMove: Move | null; scoreCp: number; pv: string[] } {
+): { bestMove: Move | null; scoreCp: number; pv: string[]; topMoves: CandidateMove[] } {
   const isMaximizing = chess.turn() === 'w';
   const moves = chess.moves({ verbose: true }) as Move[];
 
   if (moves.length === 0) {
-    return { bestMove: null, scoreCp: evaluateBoardState(chess) / 100, pv: [] };
+    return { bestMove: null, scoreCp: evaluateBoardState(chess) / 100, pv: [], topMoves: [] };
   }
 
   // Move ordering: captures first
@@ -159,39 +167,43 @@ export function searchBestMove(
     return bCapture - aCapture;
   });
 
-  let bestMove: Move = moves[0];
-  let bestScore = isMaximizing ? -Infinity : Infinity;
+  const evaluatedMoves: { move: Move; score: number }[] = [];
   let alpha = -Infinity;
   let beta = Infinity;
-  const pv: string[] = [];
 
   for (const move of moves) {
     chess.move(move);
     const score = alphaBeta(chess, depth - 1, alpha, beta, !isMaximizing);
     chess.undo();
 
+    evaluatedMoves.push({ move, score });
+
     if (isMaximizing) {
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = move;
-      }
-      alpha = Math.max(alpha, bestScore);
+      alpha = Math.max(alpha, score);
     } else {
-      if (score < bestScore) {
-        bestScore = score;
-        bestMove = move;
-      }
-      beta = Math.min(beta, bestScore);
+      beta = Math.min(beta, score);
     }
 
     if (beta <= alpha) break;
   }
 
-  pv.push(bestMove.san);
+  // Sort evaluated moves (descending for white, ascending for black)
+  evaluatedMoves.sort((a, b) => isMaximizing ? b.score - a.score : a.score - b.score);
+
+  const bestEntry = evaluatedMoves[0];
+  const topMoves: CandidateMove[] = evaluatedMoves.slice(0, 3).map((item, idx) => ({
+    from: item.move.from,
+    to: item.move.to,
+    san: item.move.san,
+    scoreCp: item.score / 100,
+    rank: (idx + 1) as 1 | 2 | 3,
+  }));
+
   return {
-    bestMove,
-    scoreCp: bestScore / 100,
-    pv,
+    bestMove: bestEntry ? bestEntry.move : moves[0],
+    scoreCp: bestEntry ? bestEntry.score / 100 : 0,
+    pv: [bestEntry ? bestEntry.move.san : ''],
+    topMoves,
   };
 }
 

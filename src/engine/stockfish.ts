@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createStockfishWorker } from './stockfish.worker';
 import { JevVisualImprint } from './jevFilter';
+import { CandidateMove } from './androidChessEngine';
 
 export interface EngineEvaluation {
   depth: number;
@@ -10,6 +11,7 @@ export interface EngineEvaluation {
   pvLine: string;
   isCalculating: boolean;
   imprint?: JevVisualImprint;
+  topMoves?: CandidateMove[];
 }
 
 export function useStockfishEngine() {
@@ -21,6 +23,7 @@ export function useStockfishEngine() {
     pvLine: '',
     isCalculating: false,
     imprint: undefined,
+    topMoves: [],
   });
 
   const [engineReady, setEngineReady] = useState(false);
@@ -47,6 +50,7 @@ export function useStockfishEngine() {
             ...prev,
             scoreCp: event.data!.scoreCp,
             imprint: event.data!.imprint,
+            topMoves: event.data!.topMoves || prev.topMoves,
           }));
         }
       } else if (event.type === 'MOVE_FOUND' && event.data) {
@@ -60,6 +64,7 @@ export function useStockfishEngine() {
           pvLine: event.data.pvLine,
           isCalculating: false,
           imprint: event.data.imprint,
+          topMoves: event.data.topMoves || [],
         });
       }
     });
