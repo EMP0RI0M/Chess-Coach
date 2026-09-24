@@ -122,6 +122,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                   const isHero = heroSquare === squareName;
                   const isThreat = threatsEnabled && piece && piece.color !== chess.turn();
                   const isJevCritical = jevImprint && jevImprint.criticalSquare === squareName;
+                  const jevGlowColor = jevImprint?.uiColorOverlay || '#EF4444';
 
                   return (
                     <TouchableOpacity
@@ -139,7 +140,11 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                         isLastMoveSquare && styles.lastMoveSquare,
                         isHero && styles.heroSquareHighlight,
                         isThreat && styles.threatHighlight,
-                        isJevCritical && styles.jevCriticalSquareGlow,
+                        isJevCritical && {
+                          backgroundColor: `${jevGlowColor}44`,
+                          borderWidth: 2,
+                          borderColor: jevGlowColor,
+                        },
                       ]}
                     >
                       {/* Rank Coordinates */}
@@ -214,7 +219,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                   y1={vectorClampPoints.from.y}
                   x2={vectorClampPoints.to.x}
                   y2={vectorClampPoints.to.y}
-                  stroke="#3B82F6"
+                  stroke={jevImprint?.uiColorOverlay || '#3B82F6'}
                   strokeWidth="6"
                   strokeOpacity="0.85"
                   strokeLinecap="round"

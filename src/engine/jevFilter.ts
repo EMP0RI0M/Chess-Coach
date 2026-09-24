@@ -1,6 +1,7 @@
 import { Chess, Move } from 'chess.js';
+import { SENSORY_ANCHORING_MAP, SensoryAnchorSpec } from './sensoryAnchoring';
 
-export type TacticalMotif = 'Pin' | 'Fork' | 'Overloaded_Defender' | 'Space_Clamp' | 'King_Exposure' | 'Discovered_Attack' | 'Back_Rank_Mate' | 'Demolition';
+export type TacticalMotif = 'Pin' | 'Fork' | 'Overloaded_Defender' | 'Space_Clamp' | 'King_Exposure' | 'Discovered_Attack' | 'Back_Rank_Mate' | 'Demolition' | 'Tactical_Sacrifice';
 
 export interface JevVisualImprint {
   tacticalMotif: TacticalMotif;
@@ -10,6 +11,8 @@ export interface JevVisualImprint {
   threatSeverity: number; // 1 to 10
   vectorClampLine?: { from: string; to: string } | null;
   latencyMs: number;
+  uiColorOverlay: string;
+  audioSpec?: SensoryAnchorSpec;
 }
 
 export interface SystemOneDecision {
@@ -31,6 +34,7 @@ export class JevCognitiveFilter {
     const t0 = Date.now();
 
     if (legalMoves.length === 0) {
+      const spec = SENSORY_ANCHORING_MAP['King_Exposure'];
       const imprint: JevVisualImprint = {
         tacticalMotif: 'King_Exposure',
         criticalSquare: 'e1',
@@ -38,6 +42,8 @@ export class JevCognitiveFilter {
         flashWord: 'TERMINAL',
         threatSeverity: 10,
         latencyMs: Date.now() - t0,
+        uiColorOverlay: spec.ui_color_overlay,
+        audioSpec: spec,
       };
       return {
         policyMove: null,
@@ -50,7 +56,7 @@ export class JevCognitiveFilter {
       };
     }
 
-    // 1. Analyze critical squares (f7/f2 king exposure, central clamps, back ranks)
+    // 1. Analyze critical squares (f7/f2 king exposure, central clamps, back ranks, sacrifices)
     let detectedMotif: TacticalMotif = 'Space_Clamp';
     let criticalSquare = 'e4';
     let flashWord = 'POSITIONAL';
@@ -58,6 +64,15 @@ export class JevCognitiveFilter {
     let vectorClampLine: { from: string; to: string } | null = null;
 
     for (const m of legalMoves) {
+      // Piece sacrifice for dynamic compensation or check
+      if (m.captured && this.getPieceValue(m.piece) > this.getPieceValue(m.captured) && ['q', 'r'].includes(m.piece)) {
+        detectedMotif = 'Tactical_Sacrifice';
+        criticalSquare = m.to;
+        flashWord = 'SACRIFICE BREAK';
+        threatSeverity = 9;
+        vectorClampLine = { from: m.from, to: m.to };
+        break;
+      }
       // King Exposure / Demolition on f7 / f2
       if (['f7', 'f2'].includes(m.to) && (m.captured || m.san.includes('+'))) {
         detectedMotif = 'Demolition';
@@ -95,6 +110,7 @@ export class JevCognitiveFilter {
     // 2. Check for single forced move (e.g. escaping check or single recapture)
     if (legalMoves.length === 1) {
       const singleMove = legalMoves[0];
+      const spec = SENSORY_ANCHORING_MAP[detectedMotif] || SENSORY_ANCHORING_MAP['Space_Clamp'];
       const imprint: JevVisualImprint = {
         tacticalMotif: detectedMotif,
         criticalSquare: singleMove.to,
@@ -102,6 +118,8 @@ export class JevCognitiveFilter {
         flashWord: 'FORCED REPLY',
         threatSeverity,
         latencyMs: Date.now() - t0,
+        uiColorOverlay: spec.ui_color_overlay,
+        audioSpec: spec,
       };
       return {
         policyMove: `${singleMove.from}${singleMove.to}`,
@@ -162,6 +180,7 @@ export class JevCognitiveFilter {
     // Dynamic Time & Depth Allocation:
     const recommendedDepth = isObvious ? 2 : (confidence < 0.5 ? 4 : 3);
 
+    const spec = SENSORY_ANCHORING_MAP[detectedMotif] || SENSORY_ANCHORING_MAP['Space_Clamp'];
     const imprint: JevVisualImprint = {
       tacticalMotif: detectedMotif,
       criticalSquare: criticalSquare || bestCandidate.move.to,
@@ -170,6 +189,8 @@ export class JevCognitiveFilter {
       threatSeverity,
       vectorClampLine,
       latencyMs: Date.now() - t0,
+      uiColorOverlay: spec.ui_color_overlay,
+      audioSpec: spec,
     };
 
     return {

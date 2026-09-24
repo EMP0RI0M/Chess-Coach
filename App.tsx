@@ -18,6 +18,7 @@ import { useStockfishEngine } from './src/engine/stockfish';
 import { identifyEco } from './src/engine/ecoService';
 import { DAILY_PUZZLES, ChessPuzzle } from './src/engine/puzzleService';
 import { ChessBoardView } from './src/components/ChessBoardView';
+import { sensoryAudioEngine } from './src/engine/sensoryAnchoring';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import {
   Menu,
@@ -173,6 +174,13 @@ export default function App() {
       evaluatePosition(fen, depth);
     }
   }, [fen, engineActive, settings.stockfishEnabled, settings.cpuThreads, evaluatePosition]);
+
+  // Trigger Cross-Modal Sensory Audio Anchoring Loop
+  useEffect(() => {
+    if (settings.sound && evaluation.imprint?.tacticalMotif) {
+      sensoryAudioEngine.triggerMotifTone(evaluation.imprint.tacticalMotif, 0.2);
+    }
+  }, [evaluation.imprint?.tacticalMotif, settings.sound]);
 
   // 1. Reset / Clear All Moves
   const handleClearAllMoves = () => {
