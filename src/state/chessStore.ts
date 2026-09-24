@@ -81,7 +81,7 @@ export const useChessStore = create<ChessGameState>((set, get) => {
     isWhiteOrientation: true,
     historyMoves: [],
     currentMoveIndex: -1,
-    currentScreen: 'home',
+    currentScreen: 'analysis',
     currentPuzzleIdx: 0,
     isMenuOpen: false,
     isSettingsOpen: false,
