@@ -177,9 +177,15 @@ export default function App() {
   // Synchronize evaluation when FEN changes with 250ms non-blocking debounce
   useEffect(() => {
     if (engineActive && settings.stockfishEnabled) {
-      const depth = Math.min(Math.max(settings.cpuThreads >= 4 ? 3 : 2, 2), 3);
+      const targetDepth = settings.serverAnalysis ? 18 : Math.min(Math.max(settings.cpuThreads >= 4 ? 4 : 3, 2), 4);
       const timer = setTimeout(() => {
-        evaluatePosition(fen, depth);
+        evaluatePosition(
+          fen,
+          targetDepth,
+          800,
+          settings.engineSource,
+          settings.serverAnalysis
+        );
       }, 250);
 
       return () => {
@@ -187,7 +193,16 @@ export default function App() {
         stopEvaluation();
       };
     }
-  }, [fen, engineActive, settings.stockfishEnabled, settings.cpuThreads, evaluatePosition, stopEvaluation]);
+  }, [
+    fen,
+    engineActive,
+    settings.stockfishEnabled,
+    settings.cpuThreads,
+    settings.engineSource,
+    settings.serverAnalysis,
+    evaluatePosition,
+    stopEvaluation,
+  ]);
 
   // Trigger Cross-Modal Sensory Audio Anchoring Loop
   useEffect(() => {
@@ -549,9 +564,13 @@ export default function App() {
                     </Text>
                   </View>
                   <View style={styles.engineStatsRow}>
-                    <Text style={styles.engineStatItem}>SF19</Text>
+                    <Text style={styles.engineStatItem}>
+                      {evaluation.sourceLabel || (settings.serverAnalysis ? 'Server SF18' : 'Local Engine')}
+                    </Text>
                     <Text style={styles.statDot}>•</Text>
-                    <Text style={styles.engineStatItem}>Depth {evaluation.depth || 3}</Text>
+                    <Text style={styles.engineStatItem}>
+                      Depth {evaluation.depth || (settings.serverAnalysis ? 18 : 3)}
+                    </Text>
                     <Text style={styles.statDot}>•</Text>
                     <Text style={styles.engineStatItem}>{settings.cpuThreads} Threads</Text>
                     <Text style={styles.statDot}>•</Text>
@@ -758,13 +777,26 @@ export default function App() {
                     const nextState = !settings.stockfishEnabled;
                     updateSetting('stockfishEnabled', nextState);
                     if (nextState) {
-                      evaluatePosition(fen, 3);
+                      evaluatePosition(
+                        fen,
+                        settings.serverAnalysis ? 18 : 3,
+                        800,
+                        settings.engineSource,
+                        settings.serverAnalysis
+                      );
                     } else {
                       stopEvaluation();
                     }
                   }}
                 >
-                  <Cpu size={22} color="#FFFFFF" strokeWidth={2.3} />
+                  <Cpu size={20} color="#FFFFFF" strokeWidth={2.3} />
+                  {settings.stockfishEnabled && (
+                    <View style={styles.nebbaDepthBadge}>
+                      <Text style={styles.nebbaDepthText}>
+                        {evaluation.depth ? `D${evaluation.depth}` : (settings.serverAnalysis ? 'D18' : 'D3')}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
 
                 {/* 4. Undo / Back (↶) */}
@@ -1052,12 +1084,85 @@ export default function App() {
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Section: Stockfish Settings */}
-                <Text style={styles.settingsSectionTitle}>Stockfish Settings</Text>
+                {/* Section: Stockfish & Cloud Providers */}
+                <Text style={styles.settingsSectionTitle}>Engine & Server Provider</Text>
 
-                {/* 1. Stockfish Toggle */}
+                {/* Engine Source Selector (Website, Malaf Server, Stockfish, Local Stockfish) */}
+                <View style={styles.engineProviderCard}>
+                  <Text style={styles.engineProviderLabel}>Active Engine Source:</Text>
+                  <View style={styles.providerGrid}>
+                    {[
+                      { key: 'stockfish', label: '🦆 Stockfish (Server)', desc: 'Cloud SF18 @ 80 MNPS' },
+                      { key: 'local_stockfish', label: '📱 Local Stockfish', desc: 'On-Device Minimax' },
+                      { key: 'website', label: '🌐 Website', desc: 'Lichess Cloud Evaluation' },
+                      { key: 'malaf_server', label: '⚡ Malaf Server', desc: 'Remote Malaf Analysis' },
+                    ].map((item) => {
+                      const isSelected = settings.engineSource === item.key;
+                      return (
+                        <TouchableOpacity
+                          key={item.key}
+                          style={[
+                            styles.providerPill,
+                            isSelected && styles.providerPillActive,
+                          ]}
+                          onPress={() => {
+                            updateSetting('engineSource', item.key as any);
+                            evaluatePosition(
+                              fen,
+                              item.key === 'local_stockfish' ? 3 : 18,
+                              800,
+                              item.key as any,
+                              item.key !== 'local_stockfish'
+                            );
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.providerPillText,
+                              isSelected && styles.providerPillTextActive,
+                            ]}
+                          >
+                            {item.label}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.providerPillDesc,
+                              isSelected && styles.providerPillDescActive,
+                            ]}
+                          >
+                            {item.desc}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* 1. Server Stockfish Toggle */}
                 <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>Stockfish Engine</Text>
+                  <View style={styles.settingTextCol}>
+                    <Text style={styles.settingLabel}>Server Stockfish Analysis</Text>
+                    <Text style={styles.settingDesc}>Stream 80 MNPS Stockfish 18 NNUE without CPU drain</Text>
+                  </View>
+                  <Switch
+                    value={settings.serverAnalysis}
+                    onValueChange={(val) => {
+                      updateSetting('serverAnalysis', val);
+                      evaluatePosition(
+                        fen,
+                        val ? 18 : 3,
+                        800,
+                        val ? settings.engineSource : 'local_stockfish',
+                        val
+                      );
+                    }}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 2. Stockfish Engine Master Toggle */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Engine Evaluation</Text>
                   <Switch
                     value={settings.stockfishEnabled}
                     onValueChange={(val) => setSettings({ ...settings, stockfishEnabled: val })}
@@ -1935,6 +2040,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1E293B',
   },
+  settingTextCol: {
+    flex: 1,
+    marginRight: 10,
+  },
+  settingDesc: {
+    fontSize: 10.5,
+    fontWeight: '500',
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 14,
+  },
   stepperRow: {
     flexDirection: 'row',
   },
@@ -2364,5 +2480,71 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+  },
+  // Engine Provider Card & Selector Styles
+  engineProviderCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  engineProviderLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  providerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  providerPill: {
+    width: '48.5%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  providerPillActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+  },
+  providerPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 2,
+  },
+  providerPillTextActive: {
+    color: '#1D4ED8',
+  },
+  providerPillDesc: {
+    fontSize: 9.5,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  providerPillDescActive: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
+  nebbaDepthBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#0F172A',
+    borderRadius: 6,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  nebbaDepthText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#38BDF8',
   },
 });

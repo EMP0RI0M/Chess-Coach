@@ -3,6 +3,7 @@ import { createStockfishWorker } from './stockfish.worker';
 import { JevVisualImprint } from './jevFilter';
 import { CandidateMove } from './androidChessEngine';
 import { JevVariationAnalysis } from './jevInvariantExtractor';
+import { EngineSource } from '../state/chessStore';
 
 export interface EngineEvaluation {
   depth: number;
@@ -14,6 +15,8 @@ export interface EngineEvaluation {
   imprint?: JevVisualImprint;
   topMoves?: CandidateMove[];
   jevAnalysis?: JevVariationAnalysis;
+  engineSource?: EngineSource;
+  sourceLabel?: string;
 }
 
 export function useStockfishEngine() {
@@ -26,6 +29,7 @@ export function useStockfishEngine() {
     isCalculating: false,
     imprint: undefined,
     topMoves: [],
+    sourceLabel: 'Server SF18',
   });
 
   const [engineReady, setEngineReady] = useState(false);
@@ -54,6 +58,7 @@ export function useStockfishEngine() {
             imprint: event.data!.imprint,
             topMoves: event.data!.topMoves || prev.topMoves,
             jevAnalysis: event.data!.jevAnalysis || prev.jevAnalysis,
+            sourceLabel: event.data!.sourceLabel || prev.sourceLabel,
           }));
         }
       } else if (event.type === 'MOVE_FOUND' && event.data) {
@@ -69,6 +74,8 @@ export function useStockfishEngine() {
           imprint: event.data.imprint,
           topMoves: event.data.topMoves || [],
           jevAnalysis: event.data.jevAnalysis,
+          engineSource: event.data.engineSource,
+          sourceLabel: event.data.sourceLabel || 'Server SF18',
         });
       }
     });
@@ -80,15 +87,24 @@ export function useStockfishEngine() {
     };
   }, []);
 
-  const evaluatePosition = useCallback((fen: string, depth = 3, movetime = 800) => {
-    setEvaluation((prev) => ({ ...prev, isCalculating: true }));
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'CALCULATE',
-        data: { fen, depth, movetime },
-      });
-    }
-  }, []);
+  const evaluatePosition = useCallback(
+    (
+      fen: string,
+      depth = 12,
+      movetime = 800,
+      engineSource: EngineSource = 'stockfish',
+      serverAnalysis = true
+    ) => {
+      setEvaluation((prev) => ({ ...prev, isCalculating: true }));
+      if (workerRef.current) {
+        workerRef.current.postMessage({
+          type: 'CALCULATE',
+          data: { fen, depth, movetime, engineSource, serverAnalysis },
+        });
+      }
+    },
+    []
+  );
 
   const stopEvaluation = useCallback(() => {
     if (workerRef.current) {

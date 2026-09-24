@@ -4,8 +4,11 @@ import { identifyEco } from '../engine/ecoService';
 
 export type BoardTheme = 'Classic Wood' | 'Emerald Green' | 'Ocean Blue' | 'Midnight Slate' | 'Charcoal Dark';
 export type PieceTheme = 'Vector Neo' | 'Classic Alpha' | 'Modern Minimal' | 'High Contrast';
+export type EngineSource = 'website' | 'malaf_server' | 'stockfish' | 'local_stockfish';
 
 export interface ChessSettings {
+  // Engine Provider Selection
+  engineSource: EngineSource;
   // Stockfish Engine
   stockfishEnabled: boolean;
   stockfishSearchTime: number;
@@ -91,13 +94,14 @@ export const useChessStore = create<ChessGameState>((set, get) => {
     selectedVariant: 'Standard Chess',
     selectedEditorPiece: 'w_p',
     settings: {
+      engineSource: 'stockfish',
       stockfishEnabled: true,
       stockfishSearchTime: 1.0,
       multipleLines: 3,
       cpuThreads: 4,
       bestMoveArrow: true,
       bestHero: true,
-      serverAnalysis: false,
+      serverAnalysis: true,
       smallBoard: false,
       useChessground: false,
       showEvalGauge: true,

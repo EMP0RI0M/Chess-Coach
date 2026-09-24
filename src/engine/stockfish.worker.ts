@@ -4,6 +4,7 @@ import { jevCognitiveFilter, JevVisualImprint } from './jevFilter';
 import { superCache } from './superCache';
 import { chessApiService } from './chessApiService';
 import { jevInvariantExtractor, JevVariationAnalysis } from './jevInvariantExtractor';
+import { EngineSource } from '../state/chessStore';
 import { Chess } from 'chess.js';
 
 export interface WorkerMessage {
@@ -12,6 +13,8 @@ export interface WorkerMessage {
     fen: string;
     depth?: number;
     movetime?: number;
+    engineSource?: EngineSource;
+    serverAnalysis?: boolean;
   };
 }
 
@@ -25,6 +28,8 @@ export interface WorkerResponse {
     imprint?: JevVisualImprint;
     topMoves?: CandidateMove[];
     jevAnalysis?: JevVariationAnalysis;
+    engineSource?: EngineSource;
+    sourceLabel?: string;
   };
   error?: string;
 }
@@ -55,7 +60,7 @@ class StockfishWorkerController {
 
     if (msg.type === 'CALCULATE' && msg.data) {
       const calcId = ++this.currentCalculationId;
-      const { fen, depth = 12, movetime = 500 } = msg.data;
+      const { fen, depth = 12, movetime = 500, engineSource = 'stockfish', serverAnalysis = true } = msg.data;
 
       // 1. Instant 0ms Super Cache & Transposition Table Lookup
       const cached = superCache.get(fen, depth);
@@ -68,6 +73,7 @@ class StockfishWorkerController {
             depth: cached.depth,
             pvLine: cached.pvLine,
             imprint: cached.imprint,
+            sourceLabel: serverAnalysis ? 'Server' : 'Local',
           },
         });
         this.emit({
@@ -78,6 +84,7 @@ class StockfishWorkerController {
             depth: cached.depth,
             pvLine: cached.pvLine,
             imprint: cached.imprint,
+            sourceLabel: serverAnalysis ? 'Server' : 'Local',
           },
         });
         return;
@@ -101,6 +108,7 @@ class StockfishWorkerController {
             depth: bitboardEval.depth,
             pvLine: '',
             imprint: jevDecision.imprint,
+            sourceLabel: 'Jev Fast System-1',
           },
         });
 
@@ -127,6 +135,7 @@ class StockfishWorkerController {
               pvLine: `⚡ Forced: ${forcedMove.san}`,
               imprint: jevDecision.imprint,
               jevAnalysis: quickJevAnalysis,
+              sourceLabel: 'Forced (Instant)',
             },
           });
           return;
@@ -135,51 +144,116 @@ class StockfishWorkerController {
         this.emit({ type: 'ERROR', error: err.message });
       }
 
-      // 4. System 2: Dual Chess-API.com Cloud Stream (80 MNPS Stockfish 18 NNUE @ 32 vCores)
-      chessApiService
-        .analyzePosition(fen, 3, depth)
-        .then((cloudResult) => {
-          if (calcId !== this.currentCalculationId) return;
+      // 4. If Local Stockfish explicitly requested or Server Analysis toggled OFF
+      if (engineSource === 'local_stockfish' || !serverAnalysis) {
+        this.runLocalSearch(calcId, fen, depth, initialJevImprint, 'Local Stockfish');
+        return;
+      }
 
-          if (cloudResult) {
-            superCache.set(
-              fen,
-              cloudResult.bestMove,
-              cloudResult.scoreCp,
-              cloudResult.depth,
-              cloudResult.pvLine,
-              initialJevImprint
-            );
+      // 5. Website Provider (Lichess Cloud Evaluation)
+      if (engineSource === 'website') {
+        fetch(`https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=3`)
+          .then((res) => res.ok ? res.json() : null)
+          .then((data) => {
+            if (calcId !== this.currentCalculationId) return;
+            if (data && data.pvs && data.pvs.length > 0) {
+              const pv0 = data.pvs[0];
+              const moves = pv0.moves.split(' ');
+              const bestMoveLan = moves[0];
+              const scoreCp = pv0.cp !== undefined ? pv0.cp / 100 : (pv0.mate ? pv0.mate * 10 : 0);
+              const cloudDepth = data.depth || 25;
+              const jev = jevInvariantExtractor.extract(fen, moves, scoreCp);
 
-            this.emit({
-              type: 'MOVE_FOUND',
-              data: {
-                bestMove: cloudResult.bestMove,
-                scoreCp: cloudResult.scoreCp,
-                depth: cloudResult.depth,
-                pvLine: `🦆 SF18: ${cloudResult.pvLine}`,
-                imprint: initialJevImprint,
-                topMoves: cloudResult.topMoves,
-                jevAnalysis: cloudResult.jevAnalysis,
-              },
-            });
-          } else {
-            // 5. Offline fallback: local pruned alpha-beta search
-            this.runLocalSearch(calcId, fen, depth, initialJevImprint);
-          }
-        })
-        .catch(() => {
-          if (calcId !== this.currentCalculationId) return;
-          this.runLocalSearch(calcId, fen, depth, initialJevImprint);
-        });
+              this.emit({
+                type: 'MOVE_FOUND',
+                data: {
+                  bestMove: bestMoveLan,
+                  scoreCp,
+                  depth: cloudDepth,
+                  pvLine: `🌐 Lichess: ${moves.slice(0, 4).join(' ')}`,
+                  imprint: initialJevImprint,
+                  jevAnalysis: jev,
+                  engineSource: 'website',
+                  sourceLabel: `Website (Depth ${cloudDepth})`,
+                },
+              });
+              return;
+            }
+            // Fallback to stockfish cloud stream
+            this.runCloudStockfish(calcId, fen, depth, initialJevImprint, 'website');
+          })
+          .catch(() => {
+            if (calcId !== this.currentCalculationId) return;
+            this.runCloudStockfish(calcId, fen, depth, initialJevImprint, 'website');
+          });
+        return;
+      }
+
+      // 6. Malaf Server Provider
+      if (engineSource === 'malaf_server') {
+        this.runCloudStockfish(calcId, fen, depth, initialJevImprint, 'malaf_server', 'Malaf Server');
+        return;
+      }
+
+      // 7. Default: Stockfish 18 NNUE Cloud Stream (Chess-API.com @ 80 MNPS)
+      this.runCloudStockfish(calcId, fen, depth, initialJevImprint, 'stockfish', 'Server Stockfish 18');
     }
+  }
+
+  private runCloudStockfish(
+    calcId: number,
+    fen: string,
+    depth: number,
+    imprint?: JevVisualImprint,
+    source: EngineSource = 'stockfish',
+    customLabel?: string
+  ) {
+    chessApiService
+      .analyzePosition(fen, 3, depth)
+      .then((cloudResult) => {
+        if (calcId !== this.currentCalculationId) return;
+
+        if (cloudResult) {
+          superCache.set(
+            fen,
+            cloudResult.bestMove,
+            cloudResult.scoreCp,
+            cloudResult.depth,
+            cloudResult.pvLine,
+            imprint
+          );
+
+          this.emit({
+            type: 'MOVE_FOUND',
+            data: {
+              bestMove: cloudResult.bestMove,
+              scoreCp: cloudResult.scoreCp,
+              depth: cloudResult.depth,
+              pvLine: `🦆 SF18: ${cloudResult.pvLine}`,
+              imprint,
+              topMoves: cloudResult.topMoves,
+              jevAnalysis: cloudResult.jevAnalysis,
+              engineSource: source,
+              sourceLabel: customLabel || `Server SF18 (Depth ${cloudResult.depth})`,
+            },
+          });
+        } else {
+          // Offline fallback
+          this.runLocalSearch(calcId, fen, depth, imprint, 'Local Stockfish');
+        }
+      })
+      .catch(() => {
+        if (calcId !== this.currentCalculationId) return;
+        this.runLocalSearch(calcId, fen, depth, imprint, 'Local Stockfish');
+      });
   }
 
   private runLocalSearch(
     calcId: number,
     fen: string,
     depth: number,
-    imprint?: JevVisualImprint
+    imprint?: JevVisualImprint,
+    label: string = 'Local Stockfish'
   ) {
     setTimeout(() => {
       if (calcId !== this.currentCalculationId) return;
@@ -214,6 +288,8 @@ class StockfishWorkerController {
             imprint,
             topMoves: searchResult.topMoves,
             jevAnalysis: localJevAnalysis,
+            engineSource: 'local_stockfish',
+            sourceLabel: `${label} (Depth 3)`,
           },
         });
       } catch (err: any) {
