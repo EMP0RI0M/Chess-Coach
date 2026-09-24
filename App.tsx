@@ -39,6 +39,11 @@ import {
   Sparkles,
   ChevronRight,
   ArrowUpDown,
+  Swords,
+  Puzzle,
+  FileText,
+  ArrowLeft,
+  Trophy,
 } from 'lucide-react-native';
 import { useStockfishEngine } from './services/stockfish';
 import { identifyEco } from './services/ecoService';
@@ -97,8 +102,8 @@ export default function App() {
   const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(-1);
   const [engineActive, setEngineActive] = useState(true);
 
-  // Sub-board Page Views: 'analysis' | 'openings' | 'puzzles' | 'pgn'
-  const [activeTab, setActiveTab] = useState<'analysis' | 'openings' | 'puzzles' | 'pgn'>('analysis');
+  // Current Active Top-Level Screen: 'home' | 'analysis' | 'openings' | 'puzzles' | 'pgn'
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'analysis' | 'openings' | 'puzzles' | 'pgn'>('home');
   const [currentPuzzleIdx, setCurrentPuzzleIdx] = useState(0);
 
   // Modals
@@ -378,236 +383,340 @@ export default function App() {
         <View style={styles.ambientFog3} />
 
         <View style={styles.container}>
-          {/* 1. Evaluation Gauge & ECO Badge (Controlled by settings.showEvalGauge) */}
-          {settings.showEvalGauge && (
-            <View style={styles.engineStatusBar}>
-              <View style={styles.evalScoreRow}>
-                <View style={styles.evalScoreBadge}>
-                  <Text style={styles.evalScoreText}>{evaluationSummary.evalText}</Text>
+          {/* ======================================================== */}
+          {/* 🏠 FRONT PAGE / DASHBOARD HUB (currentScreen === 'home') */}
+          {/* ======================================================== */}
+          {currentScreen === 'home' && (
+            <ScrollView style={styles.homeScrollView} showsVerticalScrollIndicator={false}>
+              {/* App Brand Header */}
+              <View style={styles.homeHeader}>
+                <View style={styles.homeLogoRow}>
+                  <View style={styles.homeLogoIcon}>
+                    <Brain size={28} color="#FFFFFF" strokeWidth={2.4} />
+                  </View>
+                  <View>
+                    <Text style={styles.homeTitle}>Chess Coach</Text>
+                    <Text style={styles.homeSubtitle}>Cognitive OS & Training Engine</Text>
+                  </View>
                 </View>
-                <View style={styles.ecoBadge}>
-                  <Text style={styles.ecoBadgeText}>{detectedEco.eco}</Text>
-                </View>
-                <Text style={[styles.evalStateText, { color: evaluationSummary.stateColor }]}>
-                  {evaluationSummary.stateText}
-                </Text>
-              </View>
-              <View style={styles.engineStatsRow}>
-                <Text style={styles.engineStatItem}>SF19</Text>
-                <Text style={styles.statDot}>•</Text>
-                <Text style={styles.engineStatItem}>Depth {evaluation.depth || 3}</Text>
-                <Text style={styles.statDot}>•</Text>
-                <Text style={styles.engineStatItem}>{settings.cpuThreads} Threads</Text>
-                <Text style={styles.statDot}>•</Text>
-                <Text style={styles.engineStatItem}>{detectedEco.name.split(',')[0]}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* Board Editor Mode Banner */}
-          {isBoardEditorOpen && (
-            <View style={styles.editorBannerPill}>
-              <Text style={styles.editorBannerText}>✏️ Board Editor Active</Text>
-              <TouchableOpacity
-                style={styles.editorDoneButton}
-                onPress={() => setIsBoardEditorOpen(false)}
-              >
-                <Text style={styles.editorDoneText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* 2. Interactive Chessboard (Controlled by settings.smallBoard, showThreats, bestHero) */}
-          <View style={styles.boardGlassContainer}>
-            <View style={[styles.board, { width: boardSize, height: boardSize }]}>
-              {ranks.map((rank, rIdx) => (
-                <View key={rank} style={[styles.row, { height: squareSize }]}>
-                  {files.map((file, fIdx) => {
-                    const squareName = `${file}${rank}` as Square;
-                    const piece = chess.get(squareName);
-                    const isLight = (rIdx + fIdx) % 2 === 0;
-                    const isSelected = selectedSquare === squareName;
-                    const isTarget = possibleMoves.includes(squareName);
-                    const isLastMoveSquare =
-                      lastMove?.from === squareName || lastMove?.to === squareName;
-                    
-                    const engineTargetSq = evaluation.bestMove && evaluation.bestMove.length >= 4 
-                      ? evaluation.bestMove.substring(2, 4) 
-                      : null;
-                    const isHeroSquare =
-                      settings.bestHero && (engineTargetSq ? engineTargetSq === squareName : lastMove?.to === squareName);
-                    const isThreatSquare =
-                      settings.showThreats && piece && piece.color !== chess.turn();
-
-                    const pieceKey = piece ? `${piece.color}_${piece.type}` : null;
-                    const pieceSymbol = pieceKey ? PIECE_SYMBOLS[pieceKey] : '';
-
-                    return (
-                      <TouchableOpacity
-                        key={squareName}
-                        activeOpacity={0.85}
-                        onPress={() => handleSquarePress(squareName)}
-                        style={[
-                          styles.square,
-                          { width: squareSize, height: squareSize },
-                          isLight ? styles.lightSquare : styles.darkSquare,
-                          isSelected && styles.selectedSquare,
-                          isLastMoveSquare && styles.lastMoveSquare,
-                          isHeroSquare && styles.heroSquareHighlight,
-                          isThreatSquare && styles.threatHighlight,
-                        ]}
-                      >
-                        {/* Square Coordinates */}
-                        {fIdx === 0 && (
-                          <Text style={[styles.coordRank, isLight ? styles.darkCoord : styles.lightCoord]}>
-                            {rank}
-                          </Text>
-                        )}
-                        {rIdx === 7 && (
-                          <Text style={[styles.coordFile, isLight ? styles.darkCoord : styles.lightCoord]}>
-                            {file}
-                          </Text>
-                        )}
-
-                        {/* Move Targets */}
-                        {isTarget && (
-                          <View
-                            style={[
-                              piece ? styles.captureRing : styles.moveDot,
-                              {
-                                width: squareSize * (piece ? 0.85 : 0.28),
-                                height: squareSize * (piece ? 0.85 : 0.28),
-                                borderRadius: (squareSize * (piece ? 0.85 : 0.28)) / 2,
-                              },
-                            ]}
-                          />
-                        )}
-
-                        {/* Piece Icon */}
-                        {piece && (
-                          <Text
-                            style={[
-                              styles.pieceText,
-                              { fontSize: squareSize * 0.74, lineHeight: squareSize * 0.8 },
-                              piece.color === 'w' ? styles.whitePiece : styles.blackPiece,
-                            ]}
-                          >
-                            {pieceSymbol}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-
-              {/* Best Move Arrow (Controlled by settings.bestMoveArrow) */}
-              {arrowPoints && (
-                <Svg
-                  height={boardSize}
-                  width={boardSize}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                >
-                  <Line
-                    x1={arrowPoints.from.x}
-                    y1={arrowPoints.from.y}
-                    x2={arrowPoints.to.x}
-                    y2={arrowPoints.to.y}
-                    stroke="rgba(37, 99, 235, 0.65)"
-                    strokeWidth={4}
-                    strokeLinecap="round"
-                  />
-                  <SvgCircle
-                    cx={arrowPoints.to.x}
-                    cy={arrowPoints.to.y}
-                    r={5.5}
-                    fill="rgba(37, 99, 235, 0.9)"
-                  />
-                </Svg>
-              )}
-            </View>
-          </View>
-
-          {/* Board Editor Piece Palette */}
-          {isBoardEditorOpen && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.editorPalette}>
-              {['w_k', 'w_q', 'w_r', 'w_b', 'w_n', 'w_p', 'b_k', 'b_q', 'b_r', 'b_b', 'b_n', 'b_p', null].map((p, idx) => (
                 <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.editorPaletteItem,
-                    selectedEditorPiece === p && styles.editorPaletteItemSelected,
-                  ]}
-                  onPress={() => setSelectedEditorPiece(p)}
+                  style={styles.homeSettingsButton}
+                  onPress={() => setIsSettingsOpen(true)}
                 >
-                  <Text style={styles.editorPalettePiece}>
-                    {p ? PIECE_SYMBOLS[p] : '❌'}
-                  </Text>
+                  <SettingsIcon size={22} color="#1E293B" />
                 </TouchableOpacity>
-              ))}
+              </View>
+
+              {/* Main Play & Analysis Card */}
+              <TouchableOpacity
+                style={styles.heroPlayCard}
+                activeOpacity={0.88}
+                onPress={() => setCurrentScreen('analysis')}
+              >
+                <View style={styles.heroPlayBadge}>
+                  <Text style={styles.heroPlayBadgeText}>⚡ SF19 Live Engine</Text>
+                </View>
+                <Text style={styles.heroPlayTitle}>Play & Cognitive Analysis</Text>
+                <Text style={styles.heroPlaySubtitle}>
+                  Interactive board with real-time Stockfish engine, best-move arrows, and grounded coach explanations.
+                </Text>
+                <View style={styles.heroPlayButton}>
+                  <Swords size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.heroPlayButtonText}>Start Game Board →</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Feature Grid: Book, Puzzles, PGN, Settings */}
+              <View style={styles.homeGrid}>
+                {/* 1. Opening Book */}
+                <TouchableOpacity
+                  style={styles.homeGridCard}
+                  activeOpacity={0.85}
+                  onPress={() => setCurrentScreen('openings')}
+                >
+                  <View style={[styles.homeGridIconWrapper, { backgroundColor: '#EFF6FF' }]}>
+                    <BookOpen size={24} color="#2563EB" />
+                  </View>
+                  <Text style={styles.homeGridCardTitle}>Opening Book</Text>
+                  <Text style={styles.homeGridCardDesc}>ECO classifier & master database win rates.</Text>
+                </TouchableOpacity>
+
+                {/* 2. Tactical Puzzles */}
+                <TouchableOpacity
+                  style={styles.homeGridCard}
+                  activeOpacity={0.85}
+                  onPress={() => setCurrentScreen('puzzles')}
+                >
+                  <View style={[styles.homeGridIconWrapper, { backgroundColor: '#FEF3C7' }]}>
+                    <Puzzle size={24} color="#D97706" />
+                  </View>
+                  <Text style={styles.homeGridCardTitle}>Tactical Puzzles</Text>
+                  <Text style={styles.homeGridCardDesc}>Endgames, forks, pins, and Greek gift sacrifices.</Text>
+                </TouchableOpacity>
+
+                {/* 3. PGN Manager */}
+                <TouchableOpacity
+                  style={styles.homeGridCard}
+                  activeOpacity={0.85}
+                  onPress={() => setCurrentScreen('pgn')}
+                >
+                  <View style={[styles.homeGridIconWrapper, { backgroundColor: '#ECFDF5' }]}>
+                    <FileText size={24} color="#059669" />
+                  </View>
+                  <Text style={styles.homeGridCardTitle}>PGN Manager</Text>
+                  <Text style={styles.homeGridCardDesc}>View, import, and export game notation.</Text>
+                </TouchableOpacity>
+
+                {/* 4. Chess Variants */}
+                <TouchableOpacity
+                  style={styles.homeGridCard}
+                  activeOpacity={0.85}
+                  onPress={() => setIsVariantOpen(true)}
+                >
+                  <View style={[styles.homeGridIconWrapper, { backgroundColor: '#F3E8FF' }]}>
+                    <Layers size={24} color="#7C3AED" />
+                  </View>
+                  <Text style={styles.homeGridCardTitle}>Chess Variants</Text>
+                  <Text style={styles.homeGridCardDesc}>Fischer Random, King of Hill, Three-Check.</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ height: 30 }} />
             </ScrollView>
           )}
 
-          {/* 3. Inline Notation Timeline (Controlled by settings.inlineNotations) */}
-          {settings.inlineNotations && (
-            <View style={styles.timelineWrapper}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timelineScroll}>
+          {/* ======================================================== */}
+          {/* ♟️ FULL GAME & ANALYSIS SCREEN (currentScreen === 'analysis') */}
+          {/* ======================================================== */}
+          {currentScreen === 'analysis' && (
+            <>
+              {/* Back to Home Header */}
+              <View style={styles.screenHeaderRow}>
                 <TouchableOpacity
-                  style={[styles.timelinePill, currentMoveIndex === -1 && styles.timelinePillActive]}
-                  onPress={handleClearAllMoves}
+                  style={styles.screenBackButton}
+                  onPress={() => setCurrentScreen('home')}
                 >
-                  <Compass size={12} color={currentMoveIndex === -1 ? '#FFFFFF' : '#64748B'} style={{ marginRight: 4 }} />
-                  <Text style={[styles.timelineText, currentMoveIndex === -1 && styles.timelineTextActive]}>
-                    Start
-                  </Text>
+                  <ArrowLeft size={18} color="#1E293B" strokeWidth={2.4} />
+                  <Text style={styles.screenBackText}>Hub</Text>
                 </TouchableOpacity>
+                <Text style={styles.screenHeaderTitle}>Interactive Board</Text>
+                <TouchableOpacity
+                  style={styles.screenHeaderAction}
+                  onPress={() => setIsSettingsOpen(true)}
+                >
+                  <SettingsIcon size={18} color="#1E293B" />
+                </TouchableOpacity>
+              </View>
 
-                {historyMoves.map((m, idx) => {
-                  const moveNum = Math.floor(idx / 2) + 1;
-                  const isWhite = idx % 2 === 0;
-                  const label = isWhite ? `${moveNum}. ${m.san}` : `${m.san}`;
-                  const isActive = currentMoveIndex === idx;
+              {/* 1. Evaluation Gauge & ECO Badge */}
+              {settings.showEvalGauge && (
+                <View style={styles.engineStatusBar}>
+                  <View style={styles.evalScoreRow}>
+                    <View style={styles.evalScoreBadge}>
+                      <Text style={styles.evalScoreText}>{evaluationSummary.evalText}</Text>
+                    </View>
+                    <View style={styles.ecoBadge}>
+                      <Text style={styles.ecoBadgeText}>{detectedEco.eco}</Text>
+                    </View>
+                    <Text style={[styles.evalStateText, { color: evaluationSummary.stateColor }]}>
+                      {evaluationSummary.stateText}
+                    </Text>
+                  </View>
+                  <View style={styles.engineStatsRow}>
+                    <Text style={styles.engineStatItem}>SF19</Text>
+                    <Text style={styles.statDot}>•</Text>
+                    <Text style={styles.engineStatItem}>Depth {evaluation.depth || 3}</Text>
+                    <Text style={styles.statDot}>•</Text>
+                    <Text style={styles.engineStatItem}>{settings.cpuThreads} Threads</Text>
+                    <Text style={styles.statDot}>•</Text>
+                    <Text style={styles.engineStatItem}>{detectedEco.name.split(',')[0]}</Text>
+                  </View>
+                </View>
+              )}
 
-                  return (
+              {/* Board Editor Mode Banner */}
+              {isBoardEditorOpen && (
+                <View style={styles.editorBannerPill}>
+                  <Text style={styles.editorBannerText}>✏️ Board Editor Active</Text>
+                  <TouchableOpacity
+                    style={styles.editorDoneButton}
+                    onPress={() => setIsBoardEditorOpen(false)}
+                  >
+                    <Text style={styles.editorDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* 2. Interactive Chessboard */}
+              <View style={styles.boardGlassContainer}>
+                <View style={[styles.board, { width: boardSize, height: boardSize }]}>
+                  {ranks.map((rank, rIdx) => (
+                    <View key={rank} style={[styles.row, { height: squareSize }]}>
+                      {files.map((file, fIdx) => {
+                        const squareName = `${file}${rank}` as Square;
+                        const piece = chess.get(squareName);
+                        const isLight = (rIdx + fIdx) % 2 === 0;
+                        const isSelected = selectedSquare === squareName;
+                        const isTarget = possibleMoves.includes(squareName);
+                        const isLastMoveSquare =
+                          lastMove?.from === squareName || lastMove?.to === squareName;
+                        
+                        const engineTargetSq = evaluation.bestMove && evaluation.bestMove.length >= 4 
+                          ? evaluation.bestMove.substring(2, 4) 
+                          : null;
+                        const isHeroSquare =
+                          settings.bestHero && (engineTargetSq ? engineTargetSq === squareName : lastMove?.to === squareName);
+                        const isThreatSquare =
+                          settings.showThreats && piece && piece.color !== chess.turn();
+
+                        const pieceKey = piece ? `${piece.color}_${piece.type}` : null;
+                        const pieceSymbol = pieceKey ? PIECE_SYMBOLS[pieceKey] : '';
+
+                        return (
+                          <TouchableOpacity
+                            key={squareName}
+                            activeOpacity={0.85}
+                            onPress={() => handleSquarePress(squareName)}
+                            style={[
+                              styles.square,
+                              { width: squareSize, height: squareSize },
+                              isLight ? styles.lightSquare : styles.darkSquare,
+                              isSelected && styles.selectedSquare,
+                              isLastMoveSquare && styles.lastMoveSquare,
+                              isHeroSquare && styles.heroSquareHighlight,
+                              isThreatSquare && styles.threatHighlight,
+                            ]}
+                          >
+                            {/* Square Coordinates */}
+                            {fIdx === 0 && (
+                              <Text style={[styles.coordRank, isLight ? styles.darkCoord : styles.lightCoord]}>
+                                {rank}
+                              </Text>
+                            )}
+                            {rIdx === 7 && (
+                              <Text style={[styles.coordFile, isLight ? styles.darkCoord : styles.lightCoord]}>
+                                {file}
+                              </Text>
+                            )}
+
+                            {/* Move Targets */}
+                            {isTarget && (
+                              <View
+                                style={[
+                                  piece ? styles.captureRing : styles.moveDot,
+                                  {
+                                    width: squareSize * (piece ? 0.85 : 0.28),
+                                    height: squareSize * (piece ? 0.85 : 0.28),
+                                    borderRadius: (squareSize * (piece ? 0.85 : 0.28)) / 2,
+                                  },
+                                ]}
+                              />
+                            )}
+
+                            {/* Piece Icon */}
+                            {piece && (
+                              <Text
+                                style={[
+                                  styles.pieceText,
+                                  { fontSize: squareSize * 0.74, lineHeight: squareSize * 0.8 },
+                                  piece.color === 'w' ? styles.whitePiece : styles.blackPiece,
+                                ]}
+                              >
+                                {pieceSymbol}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
+
+                  {/* Best Move Arrow */}
+                  {arrowPoints && (
+                    <Svg
+                      height={boardSize}
+                      width={boardSize}
+                      style={StyleSheet.absoluteFill}
+                      pointerEvents="none"
+                    >
+                      <Line
+                        x1={arrowPoints.from.x}
+                        y1={arrowPoints.from.y}
+                        x2={arrowPoints.to.x}
+                        y2={arrowPoints.to.y}
+                        stroke="rgba(37, 99, 235, 0.65)"
+                        strokeWidth={4}
+                        strokeLinecap="round"
+                      />
+                      <SvgCircle
+                        cx={arrowPoints.to.x}
+                        cy={arrowPoints.to.y}
+                        r={5.5}
+                        fill="rgba(37, 99, 235, 0.9)"
+                      />
+                    </Svg>
+                  )}
+                </View>
+              </View>
+
+              {/* Board Editor Piece Palette */}
+              {isBoardEditorOpen && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.editorPalette}>
+                  {['w_k', 'w_q', 'w_r', 'w_b', 'w_n', 'w_p', 'b_k', 'b_q', 'b_r', 'b_b', 'b_n', 'b_p', null].map((p, idx) => (
                     <TouchableOpacity
                       key={idx}
-                      style={[styles.timelinePill, isActive && styles.timelinePillActive]}
-                      onPress={() => handleJumpToMove(idx)}
+                      style={[
+                        styles.editorPaletteItem,
+                        selectedEditorPiece === p && styles.editorPaletteItemSelected,
+                      ]}
+                      onPress={() => setSelectedEditorPiece(p)}
                     >
-                      <Text style={[styles.timelineText, isActive && styles.timelineTextActive]}>
-                        {label}{cognitiveInsight.annotation}
+                      <Text style={styles.editorPalettePiece}>
+                        {p ? PIECE_SYMBOLS[p] : '❌'}
                       </Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          )}
+                  ))}
+                </ScrollView>
+              )}
 
-          {/* Dedicated Sub-Board Feature Tabs: Analysis | Openings | Puzzles | PGN */}
-          <View style={styles.subPageTabRow}>
-            {(['analysis', 'openings', 'puzzles', 'pgn'] as const).map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.subPageTabButton, activeTab === tab && styles.subPageTabButtonActive]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text style={[styles.subPageTabText, activeTab === tab && styles.subPageTabTextActive]}>
-                  {tab === 'analysis' && '🧠 Coach'}
-                  {tab === 'openings' && '📖 Book'}
-                  {tab === 'puzzles' && '🧩 Puzzles'}
-                  {tab === 'pgn' && '📂 PGN'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              {/* 3. Inline Notation Timeline */}
+              {settings.inlineNotations && (
+                <View style={styles.timelineWrapper}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timelineScroll}>
+                    <TouchableOpacity
+                      style={[styles.timelinePill, currentMoveIndex === -1 && styles.timelinePillActive]}
+                      onPress={handleClearAllMoves}
+                    >
+                      <Compass size={12} color={currentMoveIndex === -1 ? '#FFFFFF' : '#64748B'} style={{ marginRight: 4 }} />
+                      <Text style={[styles.timelineText, currentMoveIndex === -1 && styles.timelineTextActive]}>
+                        Start
+                      </Text>
+                    </TouchableOpacity>
 
-          {/* 4. Dedicated Multi-Page View Containers */}
-          <ScrollView style={styles.analysisScrollView} showsVerticalScrollIndicator={false}>
-            {/* Page 1: Analysis & Cognitive Coach */}
-            {activeTab === 'analysis' && (
-              <>
+                    {historyMoves.map((m, idx) => {
+                      const moveNum = Math.floor(idx / 2) + 1;
+                      const isWhite = idx % 2 === 0;
+                      const label = isWhite ? `${moveNum}. ${m.san}` : `${m.san}`;
+                      const isActive = currentMoveIndex === idx;
+
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          style={[styles.timelinePill, isActive && styles.timelinePillActive]}
+                          onPress={() => handleJumpToMove(idx)}
+                        >
+                          <Text style={[styles.timelineText, isActive && styles.timelineTextActive]}>
+                            {label}{cognitiveInsight.annotation}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* 4. Cognitive Comments */}
+              <ScrollView style={styles.analysisScrollView} showsVerticalScrollIndicator={false}>
                 {settings.showComments && (
                   <View style={styles.cognitiveCard}>
                     <View style={styles.cognitiveCardHeader}>
@@ -626,134 +735,192 @@ export default function App() {
                     </Text>
                   </View>
                 )}
-              </>
-            )}
+              </ScrollView>
 
-            {/* Page 2: ECO Opening Book & Master DB */}
-            {activeTab === 'openings' && (
-              <View style={styles.explorerCard}>
-                <View style={styles.explorerHeaderRow}>
-                  <Text style={styles.explorerTitle}>📖 {detectedEco.name}</Text>
-                  <View style={styles.ecoTagSmall}>
-                    <Text style={styles.ecoTagSmallText}>{detectedEco.eco}</Text>
+              {/* 5. Bottom Pill-Shaped Navbar */}
+              <View style={styles.bottomNebba}>
+                {/* 1. Three-line Menu (☰) */}
+                <TouchableOpacity
+                  style={styles.nebbaButton}
+                  activeOpacity={0.7}
+                  onPress={() => setIsMenuOpen(true)}
+                >
+                  <Menu size={20} color="#1E293B" strokeWidth={2.2} />
+                </TouchableOpacity>
+
+                {/* 2. Flip Board (⇅) */}
+                <TouchableOpacity
+                  style={styles.nebbaButton}
+                  activeOpacity={0.7}
+                  onPress={handleFlipBoard}
+                >
+                  <ArrowUpDown size={20} color="#1E293B" strokeWidth={2.2} />
+                </TouchableOpacity>
+
+                {/* 3. Stockfish Engine Processor / Coach (⚙ / 🧠 / Cpu) */}
+                <TouchableOpacity
+                  style={[styles.nebbaButton, styles.nebbaHeroButton, !settings.stockfishEnabled && styles.nebbaHeroButtonInactive]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    const nextState = !settings.stockfishEnabled;
+                    setSettings((prev) => ({ ...prev, stockfishEnabled: nextState }));
+                    if (nextState) {
+                      evaluatePosition(chess.fen(), 15);
+                    } else {
+                      stopEvaluation();
+                    }
+                  }}
+                >
+                  <Cpu size={22} color="#FFFFFF" strokeWidth={2.3} />
+                </TouchableOpacity>
+
+                {/* 4. Undo / Back (↶) */}
+                <TouchableOpacity
+                  style={[styles.nebbaButton, currentMoveIndex < 0 && styles.nebbaButtonDisabled]}
+                  activeOpacity={0.7}
+                  disabled={currentMoveIndex < 0}
+                  onPress={handleUndo}
+                >
+                  <Undo2 size={20} color="#1E293B" strokeWidth={2.2} />
+                </TouchableOpacity>
+
+                {/* 5. Redo / Forward (↷) */}
+                <TouchableOpacity
+                  style={[styles.nebbaButton, currentMoveIndex >= historyMoves.length - 1 && styles.nebbaButtonDisabled]}
+                  activeOpacity={0.7}
+                  disabled={currentMoveIndex >= historyMoves.length - 1}
+                  onPress={handleRedo}
+                >
+                  <Redo2 size={20} color="#1E293B" strokeWidth={2.2} />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {/* ======================================================== */}
+          {/* 📖 OPENINGS PAGE (currentScreen === 'openings') */}
+          {/* ======================================================== */}
+          {currentScreen === 'openings' && (
+            <View style={{ flex: 1 }}>
+              <View style={styles.screenHeaderRow}>
+                <TouchableOpacity
+                  style={styles.screenBackButton}
+                  onPress={() => setCurrentScreen('home')}
+                >
+                  <ArrowLeft size={18} color="#1E293B" strokeWidth={2.4} />
+                  <Text style={styles.screenBackText}>Hub</Text>
+                </TouchableOpacity>
+                <Text style={styles.screenHeaderTitle}>Opening Explorer</Text>
+                <View style={{ width: 32 }} />
+              </View>
+
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                <View style={styles.explorerCard}>
+                  <View style={styles.explorerHeaderRow}>
+                    <Text style={styles.explorerTitle}>📖 {detectedEco.name}</Text>
+                    <View style={styles.ecoTagSmall}>
+                      <Text style={styles.ecoTagSmallText}>{detectedEco.eco}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.explorerBody}>
+                    {chess.history().length === 0 
+                      ? 'Initial Position: 1. e4 (48% win), 1. d4 (36% win), 1. Nf3 (9% win), 1. c4 (5% win)' 
+                      : `Active Played Line: ${chess.history().join(' ')}`}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.pageActionButton}
+                  onPress={() => setCurrentScreen('analysis')}
+                >
+                  <Text style={styles.pageActionButtonText}>Go to Interactive Board →</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          )}
+
+          {/* ======================================================== */}
+          {/* 🧩 TACTICAL PUZZLES PAGE (currentScreen === 'puzzles') */}
+          {/* ======================================================== */}
+          {currentScreen === 'puzzles' && (
+            <View style={{ flex: 1 }}>
+              <View style={styles.screenHeaderRow}>
+                <TouchableOpacity
+                  style={styles.screenBackButton}
+                  onPress={() => setCurrentScreen('home')}
+                >
+                  <ArrowLeft size={18} color="#1E293B" strokeWidth={2.4} />
+                  <Text style={styles.screenBackText}>Hub</Text>
+                </TouchableOpacity>
+                <Text style={styles.screenHeaderTitle}>Tactical Puzzles</Text>
+                <View style={{ width: 32 }} />
+              </View>
+
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                <View style={styles.puzzleCard}>
+                  <View style={styles.puzzleHeaderRow}>
+                    <Text style={styles.puzzleTitle}>🧩 Puzzle #{currentPuzzleIdx + 1}</Text>
+                    <Text style={styles.puzzleRatingBadge}>{DAILY_PUZZLES[currentPuzzleIdx].rating} ELO</Text>
+                  </View>
+                  <Text style={styles.puzzleThemeText}>Theme: {DAILY_PUZZLES[currentPuzzleIdx].theme}</Text>
+                  <Text style={styles.puzzleDescText}>{DAILY_PUZZLES[currentPuzzleIdx].description}</Text>
+                  
+                  <View style={styles.puzzleActionRow}>
+                    <TouchableOpacity
+                      style={styles.puzzleLoadButton}
+                      onPress={() => {
+                        chess.load(DAILY_PUZZLES[currentPuzzleIdx].fen);
+                        setHistoryMoves([]);
+                        setCurrentMoveIndex(-1);
+                        syncBoard();
+                        setCurrentScreen('analysis');
+                      }}
+                    >
+                      <Text style={styles.puzzleLoadButtonText}>Load onto Board</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.puzzleNextButton}
+                      onPress={() => {
+                        const next = (currentPuzzleIdx + 1) % DAILY_PUZZLES.length;
+                        setCurrentPuzzleIdx(next);
+                      }}
+                    >
+                      <Text style={styles.puzzleNextButtonText}>Next Puzzle →</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={styles.explorerBody}>
-                  {chess.history().length === 0 
-                    ? '1. e4 (48% win), 1. d4 (36% win), 1. Nf3 (9% win), 1. c4 (5% win)' 
-                    : `Active Variation: ${chess.history().join(' ')}`}
-                </Text>
-              </View>
-            )}
+              </ScrollView>
+            </View>
+          )}
 
-            {/* Page 3: Daily Tactical Puzzles */}
-            {activeTab === 'puzzles' && (
-              <View style={styles.puzzleCard}>
-                <View style={styles.puzzleHeaderRow}>
-                  <Text style={styles.puzzleTitle}>🧩 Tactical Challenge #{currentPuzzleIdx + 1}</Text>
-                  <Text style={styles.puzzleRatingBadge}>{DAILY_PUZZLES[currentPuzzleIdx].rating} ELO</Text>
+          {/* ======================================================== */}
+          {/* 📂 PGN MANAGER PAGE (currentScreen === 'pgn') */}
+          {/* ======================================================== */}
+          {currentScreen === 'pgn' && (
+            <View style={{ flex: 1 }}>
+              <View style={styles.screenHeaderRow}>
+                <TouchableOpacity
+                  style={styles.screenBackButton}
+                  onPress={() => setCurrentScreen('home')}
+                >
+                  <ArrowLeft size={18} color="#1E293B" strokeWidth={2.4} />
+                  <Text style={styles.screenBackText}>Hub</Text>
+                </TouchableOpacity>
+                <Text style={styles.screenHeaderTitle}>PGN Manager</Text>
+                <View style={{ width: 32 }} />
+              </View>
+
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                <View style={styles.pgnCard}>
+                  <Text style={styles.pgnCardTitle}>📂 Current Game PGN</Text>
+                  <Text style={styles.pgnContentText}>
+                    {chess.pgn() || '[Event "Casual Game"]\n[Site "Chess Coach"]\n1. --'}
+                  </Text>
                 </View>
-                <Text style={styles.puzzleThemeText}>Theme: {DAILY_PUZZLES[currentPuzzleIdx].theme}</Text>
-                <Text style={styles.puzzleDescText}>{DAILY_PUZZLES[currentPuzzleIdx].description}</Text>
-                
-                <View style={styles.puzzleActionRow}>
-                  <TouchableOpacity
-                    style={styles.puzzleLoadButton}
-                    onPress={() => {
-                      chess.load(DAILY_PUZZLES[currentPuzzleIdx].fen);
-                      setHistoryMoves([]);
-                      setCurrentMoveIndex(-1);
-                      syncBoard();
-                    }}
-                  >
-                    <Text style={styles.puzzleLoadButtonText}>Load onto Board</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.puzzleNextButton}
-                    onPress={() => {
-                      const next = (currentPuzzleIdx + 1) % DAILY_PUZZLES.length;
-                      setCurrentPuzzleIdx(next);
-                      chess.load(DAILY_PUZZLES[next].fen);
-                      setHistoryMoves([]);
-                      setCurrentMoveIndex(-1);
-                      syncBoard();
-                    }}
-                  >
-                    <Text style={styles.puzzleNextButtonText}>Next Puzzle →</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {/* Page 4: PGN Manager */}
-            {activeTab === 'pgn' && (
-              <View style={styles.pgnCard}>
-                <Text style={styles.pgnCardTitle}>📂 PGN Game Notation</Text>
-                <Text style={styles.pgnContentText}>
-                  {chess.pgn() || '[Event "Casual Game"]\n[Site "Chess Coach"]\n1. --'}
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-
-          {/* 5. Bottom Pill-Shaped Navbar (5 Pure Icon-Only Buttons) */}
-          <View style={styles.bottomNebba}>
-            {/* 1. Three-line Menu (☰) */}
-            <TouchableOpacity
-              style={styles.nebbaButton}
-              activeOpacity={0.7}
-              onPress={() => setIsMenuOpen(true)}
-            >
-              <Menu size={20} color="#1E293B" strokeWidth={2.2} />
-            </TouchableOpacity>
-
-            {/* 2. Flip Board (⇅) */}
-            <TouchableOpacity
-              style={styles.nebbaButton}
-              activeOpacity={0.7}
-              onPress={handleFlipBoard}
-            >
-              <ArrowUpDown size={20} color="#1E293B" strokeWidth={2.2} />
-            </TouchableOpacity>
-
-            {/* 3. Stockfish Engine Processor / Coach (⚙ / 🧠 / Cpu) */}
-            <TouchableOpacity
-              style={[styles.nebbaButton, styles.nebbaHeroButton, !settings.stockfishEnabled && styles.nebbaHeroButtonInactive]}
-              activeOpacity={0.8}
-              onPress={() => {
-                const nextState = !settings.stockfishEnabled;
-                setSettings((prev) => ({ ...prev, stockfishEnabled: nextState }));
-                if (nextState) {
-                  evaluatePosition(chess.fen(), 15);
-                } else {
-                  stopEvaluation();
-                }
-              }}
-            >
-              <Cpu size={22} color="#FFFFFF" strokeWidth={2.3} />
-            </TouchableOpacity>
-
-            {/* 4. Undo / Back (↶) */}
-            <TouchableOpacity
-              style={[styles.nebbaButton, currentMoveIndex < 0 && styles.nebbaButtonDisabled]}
-              activeOpacity={0.7}
-              disabled={currentMoveIndex < 0}
-              onPress={handleUndo}
-            >
-              <Undo2 size={20} color="#1E293B" strokeWidth={2.2} />
-            </TouchableOpacity>
-
-            {/* 5. Redo / Forward (↷) */}
-            <TouchableOpacity
-              style={[styles.nebbaButton, currentMoveIndex >= historyMoves.length - 1 && styles.nebbaButtonDisabled]}
-              activeOpacity={0.7}
-              disabled={currentMoveIndex >= historyMoves.length - 1}
-              onPress={handleRedo}
-            >
-              <Redo2 size={20} color="#1E293B" strokeWidth={2.2} />
-            </TouchableOpacity>
-          </View>
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* ======================================================== */}
@@ -1858,5 +2025,203 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     color: '#334155',
     lineHeight: 16,
+  },
+  // Home Hub Styles
+  homeScrollView: {
+    flex: 1,
+    paddingTop: 8,
+  },
+  homeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  homeLogoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  homeLogoIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  homeTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+  },
+  homeSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  homeSettingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.6)',
+  },
+  heroPlayCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  heroPlayBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 9999,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  heroPlayBadgeText: {
+    color: '#1D4ED8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  heroPlayTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  heroPlaySubtitle: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  heroPlayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2563EB',
+    paddingVertical: 12,
+    borderRadius: 14,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  heroPlayButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  homeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  homeGridCard: {
+    width: '48%',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  homeGridIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  homeGridCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  homeGridCardDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
+  },
+  // Screen Header Styles
+  screenHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  screenBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.6)',
+  },
+  screenBackText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginLeft: 4,
+  },
+  screenHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  screenHeaderAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.6)',
+  },
+  pageActionButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  pageActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });
