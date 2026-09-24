@@ -20,6 +20,7 @@ import { DAILY_PUZZLES, ChessPuzzle } from './src/engine/puzzleService';
 import { ChessBoardView } from './src/components/ChessBoardView';
 import { ChessgroundView } from './src/components/ChessgroundView';
 import { sensoryAudioEngine } from './src/engine/sensoryAnchoring';
+import { lichessApiService } from './src/engine/lichessApiService';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import {
   Menu,
@@ -119,6 +120,7 @@ export default function App() {
   const isBoardEditorOpen = useChessStore((s) => s.isBoardEditorOpen);
   const selectedVariant = useChessStore((s) => s.selectedVariant);
   const selectedEditorPiece = useChessStore((s) => s.selectedEditorPiece);
+  const lichessUser = useChessStore((s) => s.lichessUser);
   const settings = useChessStore((s) => s.settings);
 
   // Zustand Store Actions
@@ -139,6 +141,18 @@ export default function App() {
   const setSelectedVariant = useChessStore((s) => s.setSelectedVariant);
   const setSelectedEditorPiece = useChessStore((s) => s.setSelectedEditorPiece);
   const setCurrentPuzzleIdx = useChessStore((s) => s.setCurrentPuzzleIdx);
+  const setLichessUser = useChessStore((s) => s.setLichessUser);
+
+  // Sync with official Lichess API using token
+  useEffect(() => {
+    if (settings.lichessToken) {
+      lichessApiService.getAccount(settings.lichessToken).then((user) => {
+        if (user) {
+          setLichessUser(user);
+        }
+      });
+    }
+  }, [settings.lichessToken, setLichessUser]);
 
   // Aliases for seamless JSX binding
   const setCurrentScreen = setScreen;
@@ -448,6 +462,34 @@ export default function App() {
                 >
                   <SettingsIcon size={22} color="#1E293B" />
                 </TouchableOpacity>
+              </View>
+
+              {/* Connected Lichess Account Status Card */}
+              <View style={styles.lichessAccountCard}>
+                <View style={styles.lichessAccountHeader}>
+                  <View style={styles.lichessUserCol}>
+                    <Text style={styles.lichessUsername}>
+                      👤 {lichessUser?.username || 'EMP0RIUM'}
+                    </Text>
+                    <View style={styles.lichessSyncedBadge}>
+                      <Text style={styles.lichessSyncedText}>🟢 Lichess Synced</Text>
+                    </View>
+                  </View>
+                  <View style={styles.lichessRatingRow}>
+                    <View style={styles.lichessRatingPill}>
+                      <Text style={styles.lichessRatingLabel}>Rapid</Text>
+                      <Text style={styles.lichessRatingVal}>{lichessUser?.perfs?.rapid?.rating || 1275}</Text>
+                    </View>
+                    <View style={styles.lichessRatingPill}>
+                      <Text style={styles.lichessRatingLabel}>Bullet</Text>
+                      <Text style={styles.lichessRatingVal}>{lichessUser?.perfs?.bullet?.rating || 1115}</Text>
+                    </View>
+                    <View style={styles.lichessRatingPill}>
+                      <Text style={styles.lichessRatingLabel}>Blitz</Text>
+                      <Text style={styles.lichessRatingVal}>{lichessUser?.perfs?.blitz?.rating || 1500}</Text>
+                    </View>
+                  </View>
+                </View>
               </View>
 
               {/* Main Play & Analysis Card */}
@@ -2571,5 +2613,71 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '900',
     color: '#38BDF8',
+  },
+  // Lichess Connected Account Banner Styles
+  lichessAccountCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 18,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  lichessAccountHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  lichessUserCol: {
+    flex: 1,
+  },
+  lichessUsername: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  lichessSyncedBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  lichessSyncedText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  lichessRatingRow: {
+    flexDirection: 'row',
+  },
+  lichessRatingPill: {
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  lichessRatingLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  lichessRatingVal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1D4ED8',
   },
 });

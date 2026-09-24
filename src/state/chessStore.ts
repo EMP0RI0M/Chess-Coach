@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Chess, Square, Move } from 'chess.js';
 import { identifyEco } from '../engine/ecoService';
+import { LichessUserProfile } from '../engine/lichessApiService';
 
 export type BoardTheme = 'Classic Wood' | 'Emerald Green' | 'Ocean Blue' | 'Midnight Slate' | 'Charcoal Dark';
 export type PieceTheme = 'Vector Neo' | 'Classic Alpha' | 'Modern Minimal' | 'High Contrast';
@@ -18,6 +19,8 @@ export interface ChessSettings {
   bestHero: boolean;
   serverAnalysis: boolean;
   infiniteAnalysis: boolean;
+  // Lichess Integration
+  lichessToken: string;
   // Display & Board
   smallBoard: boolean;
   useChessground: boolean;
@@ -38,6 +41,7 @@ export interface ChessSettings {
 interface ChessGameState {
   chess: Chess;
   fen: string;
+  lichessUser: LichessUserProfile | null;
   selectedSquare: Square | null;
   possibleMoves: string[];
   lastMove: { from: string; to: string } | null;
@@ -72,6 +76,7 @@ interface ChessGameState {
   setSelectedVariant: (variant: string) => void;
   setSelectedEditorPiece: (piece: string | null) => void;
   setCurrentPuzzleIdx: (idx: number) => void;
+  setLichessUser: (user: LichessUserProfile | null) => void;
 }
 
 export const useChessStore = create<ChessGameState>((set, get) => {
@@ -80,6 +85,7 @@ export const useChessStore = create<ChessGameState>((set, get) => {
   return {
     chess: initialChess,
     fen: initialChess.fen(),
+    lichessUser: null,
     selectedSquare: null,
     possibleMoves: [],
     lastMove: null,
@@ -104,6 +110,7 @@ export const useChessStore = create<ChessGameState>((set, get) => {
       bestHero: true,
       serverAnalysis: true,
       infiniteAnalysis: true,
+      lichessToken: process.env.EXPO_PUBLIC_LICHESS_TOKEN || '',
       smallBoard: false,
       useChessground: false,
       showEvalGauge: true,
@@ -119,6 +126,7 @@ export const useChessStore = create<ChessGameState>((set, get) => {
       pieceTheme: 'Vector Neo',
     },
 
+    setLichessUser: (lichessUser) => set({ lichessUser }),
     setScreen: (currentScreen) => set({ currentScreen }),
 
     selectSquare: (selectedSquare, possibleMoves = []) => set({ selectedSquare, possibleMoves }),
