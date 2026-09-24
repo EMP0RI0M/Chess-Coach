@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Square } from 'chess.js';
 import { ChessPieceSvg } from './ChessPieceSvg';
+import { PieceTheme } from '../state/chessStore';
 
 interface DraggablePieceProps {
   square: Square;
@@ -19,6 +20,7 @@ interface DraggablePieceProps {
   onDropMove: (from: Square, to: Square) => void;
   onSelectSquare: (square: Square) => void;
   disabled?: boolean;
+  pieceTheme?: PieceTheme;
 }
 
 export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
@@ -31,6 +33,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
     onDropMove,
     onSelectSquare,
     disabled = false,
+    pieceTheme = 'Vector Neo',
   }) => {
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
@@ -107,7 +110,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
             animatedStyle,
           ]}
         >
-          <ChessPieceSvg color={color} type={type} size={squareSize * 0.78} />
+          <ChessPieceSvg color={color} type={type} size={squareSize * 0.78} theme={pieceTheme} />
         </Animated.View>
       </GestureDetector>
     );

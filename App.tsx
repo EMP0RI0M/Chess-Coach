@@ -528,6 +528,10 @@ export default function App() {
                 onSquarePress={handleSquarePress}
                 onDropMove={handleDropMove}
                 isEditorActive={isBoardEditorOpen}
+                boardTheme={settings.boardTheme}
+                pieceTheme={settings.pieceTheme}
+                sideEvalScore={{ cp: evaluation.scoreCp, mate: evaluation.scoreMate }}
+                showSideEvalBar={settings.showSideEvalBar}
               />
 
               {/* Board Editor Piece Palette */}
@@ -1134,7 +1138,17 @@ export default function App() {
                   />
                 </View>
 
-                {/* 16. Sound */}
+                {/* 16. Show Side Evaluation Bar */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Show Side Evaluation Bar</Text>
+                  <Switch
+                    value={settings.showSideEvalBar}
+                    onValueChange={(val) => updateSetting('showSideEvalBar', val)}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 17. Sound */}
                 <View style={styles.settingRow}>
                   <Text style={styles.settingLabel}>Sound</Text>
                   <Switch
@@ -1142,6 +1156,61 @@ export default function App() {
                     onValueChange={(val) => updateSetting('sound', val)}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
+                </View>
+
+                {/* Section: Board & Piece Themes */}
+                <Text style={styles.settingsSectionTitle}>Board & Piece Themes</Text>
+
+                {/* Board Theme Selector */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.settingLabel, { marginBottom: 8 }]}>Board Theme</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {(['Classic Wood', 'Emerald Green', 'Ocean Blue', 'Midnight Slate', 'Charcoal Dark'] as const).map((t) => (
+                      <TouchableOpacity
+                        key={t}
+                        style={[
+                          styles.themeOptionPill,
+                          settings.boardTheme === t && styles.themeOptionPillActive,
+                        ]}
+                        onPress={() => updateSetting('boardTheme', t)}
+                      >
+                        <Text
+                          style={[
+                            styles.themeOptionText,
+                            settings.boardTheme === t && styles.themeOptionTextActive,
+                          ]}
+                        >
+                          {t}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Piece Theme Selector */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.settingLabel, { marginBottom: 8 }]}>Piece Style</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {(['Vector Neo', 'Classic Alpha', 'Modern Minimal', 'High Contrast'] as const).map((p) => (
+                      <TouchableOpacity
+                        key={p}
+                        style={[
+                          styles.themeOptionPill,
+                          settings.pieceTheme === p && styles.themeOptionPillActive,
+                        ]}
+                        onPress={() => updateSetting('pieceTheme', p)}
+                      >
+                        <Text
+                          style={[
+                            styles.themeOptionText,
+                            settings.pieceTheme === p && styles.themeOptionTextActive,
+                          ]}
+                        >
+                          {p}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
 
                 <View style={{ height: 20 }} />
@@ -1748,6 +1817,28 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   // Sub-page Tabs
+  themeOptionPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  themeOptionPillActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#1D4ED8',
+  },
+  themeOptionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  themeOptionTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
   subPageTabRow: {
     flexDirection: 'row',
     backgroundColor: 'rgba(241, 245, 249, 0.85)',

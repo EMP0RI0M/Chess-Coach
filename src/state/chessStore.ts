@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { Chess, Square, Move } from 'chess.js';
 import { identifyEco } from '../engine/ecoService';
 
+export type BoardTheme = 'Classic Wood' | 'Emerald Green' | 'Ocean Blue' | 'Midnight Slate' | 'Charcoal Dark';
+export type PieceTheme = 'Vector Neo' | 'Classic Alpha' | 'Modern Minimal' | 'High Contrast';
+
 export interface ChessSettings {
   // Stockfish Engine
   stockfishEnabled: boolean;
@@ -14,6 +17,7 @@ export interface ChessSettings {
   // Display & Board
   smallBoard: boolean;
   showEvalGauge: boolean;
+  showSideEvalBar: boolean;
   inlineNotations: boolean;
   toggleMoveAnnotations: boolean;
   showComments: boolean;
@@ -21,6 +25,9 @@ export interface ChessSettings {
   showIndianLines: boolean;
   openExplorer: boolean;
   sound: boolean;
+  // Customization Themes
+  boardTheme: BoardTheme;
+  pieceTheme: PieceTheme;
 }
 
 interface ChessGameState {
@@ -92,6 +99,7 @@ export const useChessStore = create<ChessGameState>((set, get) => {
       serverAnalysis: false,
       smallBoard: false,
       showEvalGauge: true,
+      showSideEvalBar: true,
       inlineNotations: true,
       toggleMoveAnnotations: true,
       showComments: true,
@@ -99,6 +107,8 @@ export const useChessStore = create<ChessGameState>((set, get) => {
       showIndianLines: false,
       openExplorer: true,
       sound: true,
+      boardTheme: 'Classic Wood',
+      pieceTheme: 'Vector Neo',
     },
 
     setScreen: (currentScreen) => set({ currentScreen }),

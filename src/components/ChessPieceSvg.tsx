@@ -1,17 +1,31 @@
 import React from 'react';
 import Svg, { Path, Circle, G } from 'react-native-svg';
+import { PieceTheme } from '../state/chessStore';
 
 interface PieceSvgProps {
   color: 'w' | 'b';
   type: 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
   size: number;
+  theme?: PieceTheme;
 }
 
-export const ChessPieceSvg: React.FC<PieceSvgProps> = React.memo(({ color, type, size }) => {
+export const ChessPieceSvg: React.FC<PieceSvgProps> = React.memo(({ color, type, size, theme = 'Vector Neo' }) => {
   const isWhite = color === 'w';
-  const fill = isWhite ? '#FFFFFF' : '#1E293B';
-  const stroke = isWhite ? '#1E293B' : '#0F172A';
-  const highlight = isWhite ? '#E2E8F0' : '#334155';
+
+  // Theme-specific colors
+  let fill = isWhite ? '#FFFFFF' : '#1E293B';
+  let stroke = isWhite ? '#1E293B' : '#0F172A';
+
+  if (theme === 'Modern Minimal') {
+    fill = isWhite ? '#F8FAFC' : '#334155';
+    stroke = isWhite ? '#0284C7' : '#0F172A';
+  } else if (theme === 'High Contrast') {
+    fill = isWhite ? '#FFFFFF' : '#000000';
+    stroke = isWhite ? '#000000' : '#FFFFFF';
+  } else if (theme === 'Classic Alpha') {
+    fill = isWhite ? '#FFFDF5' : '#2D3748';
+    stroke = isWhite ? '#744210' : '#1A202C';
+  }
 
   // Crisp standard vector representations (viewBox 0 0 45 45)
   switch (type) {
@@ -34,8 +48,8 @@ export const ChessPieceSvg: React.FC<PieceSvgProps> = React.memo(({ color, type,
           <G fill={fill} stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <Path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" />
             <Path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 14.5,8 C 14.5,8 16.5,9 17,6.5 C 17.5,4 20,4.5 20,4.5 C 20,4.5 20.5,6.5 22,6.5 C 23.5,6.5 23,9 23,9" />
-            <Circle cx="9.5" cy="25.5" r="1" fill={isWhite ? '#1E293B' : '#FFFFFF'} />
-            <Path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" fill={isWhite ? '#1E293B' : '#FFFFFF'} />
+            <Circle cx="9.5" cy="25.5" r="1" fill={isWhite ? stroke : fill} />
+            <Path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" fill={isWhite ? stroke : fill} />
           </G>
         </Svg>
       );
@@ -87,7 +101,6 @@ export const ChessPieceSvg: React.FC<PieceSvgProps> = React.memo(({ color, type,
       return (
         <Svg width={size} height={size} viewBox="0 0 45 45">
           <G fill={fill} stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            {/* Crown Cross */}
             <Path d="M 22.5,11.5 L 22.5,4.5 M 19,7.5 L 26,7.5" stroke={stroke} strokeWidth="1.5" />
             <Path d="M 11.5,37 C 17,40.5 28,40.5 33.5,37 C 35.5,35 34.5,31 34.5,31 C 36,29.5 35.5,28 35.5,28 C 37,26.5 36.5,24.5 36.5,24.5 C 37.5,22.5 36.5,21 36.5,21 C 37,17 31.5,14 22.5,14 C 13.5,14 8,17 8.5,21 C 8.5,21 7.5,22.5 8.5,24.5 C 8.5,24.5 8,26.5 9.5,28 C 9.5,28 9,29.5 10.5,31 C 10.5,31 9.5,35 11.5,37 z" />
             <Path d="M 11.5,30 C 17,27 28,27 33.5,30" />
