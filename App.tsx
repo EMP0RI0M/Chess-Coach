@@ -41,6 +41,8 @@ import {
   ArrowUpDown,
 } from 'lucide-react-native';
 import { useStockfishEngine } from './services/stockfish';
+import { identifyEco } from './services/ecoService';
+import { DAILY_PUZZLES, ChessPuzzle } from './services/puzzleService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BASE_BOARD_SIZE = Math.min(SCREEN_WIDTH - 28, 380);
@@ -95,6 +97,10 @@ export default function App() {
   const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(-1);
   const [engineActive, setEngineActive] = useState(true);
 
+  // Sub-board Page Views: 'analysis' | 'openings' | 'puzzles' | 'pgn'
+  const [activeTab, setActiveTab] = useState<'analysis' | 'openings' | 'puzzles' | 'pgn'>('analysis');
+  const [currentPuzzleIdx, setCurrentPuzzleIdx] = useState(0);
+
   // Modals
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -133,11 +139,16 @@ export default function App() {
   // Stockfish Engine Integration
   const { evaluation, evaluatePosition, stopEvaluation } = useStockfishEngine();
 
+  // ECO Opening Detection
+  const detectedEco = useMemo(() => {
+    const sans = historyMoves.slice(0, currentMoveIndex + 1).map((m) => m.san);
+    return identifyEco(sans);
+  }, [historyMoves, currentMoveIndex]);
+
   // Synchronize board UI & trigger Stockfish evaluation
   const syncBoard = useCallback(() => {
     setBoardState(chess.board());
     if (engineActive && settings.stockfishEnabled) {
-      // Use efficient depth bound to avoid JS main-thread blocking
       const depth = Math.min(Math.max(settings.cpuThreads >= 4 ? 3 : 2, 2), 3);
       evaluatePosition(chess.fen(), depth);
     }
@@ -367,12 +378,15 @@ export default function App() {
         <View style={styles.ambientFog3} />
 
         <View style={styles.container}>
-          {/* 1. Evaluation Gauge (Controlled by settings.showEvalGauge) */}
+          {/* 1. Evaluation Gauge & ECO Badge (Controlled by settings.showEvalGauge) */}
           {settings.showEvalGauge && (
             <View style={styles.engineStatusBar}>
               <View style={styles.evalScoreRow}>
                 <View style={styles.evalScoreBadge}>
                   <Text style={styles.evalScoreText}>{evaluationSummary.evalText}</Text>
+                </View>
+                <View style={styles.ecoBadge}>
+                  <Text style={styles.ecoBadgeText}>{detectedEco.eco}</Text>
                 </View>
                 <Text style={[styles.evalStateText, { color: evaluationSummary.stateColor }]}>
                   {evaluationSummary.stateText}
@@ -381,11 +395,11 @@ export default function App() {
               <View style={styles.engineStatsRow}>
                 <Text style={styles.engineStatItem}>SF19</Text>
                 <Text style={styles.statDot}>•</Text>
-                <Text style={styles.engineStatItem}>Depth {evaluation.depth || 18}</Text>
+                <Text style={styles.engineStatItem}>Depth {evaluation.depth || 3}</Text>
                 <Text style={styles.statDot}>•</Text>
                 <Text style={styles.engineStatItem}>{settings.cpuThreads} Threads</Text>
                 <Text style={styles.statDot}>•</Text>
-                <Text style={styles.engineStatItem}>{settings.multipleLines} Lines</Text>
+                <Text style={styles.engineStatItem}>{detectedEco.name.split(',')[0]}</Text>
               </View>
             </View>
           )}
@@ -571,34 +585,113 @@ export default function App() {
             </View>
           )}
 
-          {/* 4. Cognitive Comments & Indian Lines (Controlled by settings.showComments & showIndianLines) */}
+          {/* Dedicated Sub-Board Feature Tabs: Analysis | Openings | Puzzles | PGN */}
+          <View style={styles.subPageTabRow}>
+            {(['analysis', 'openings', 'puzzles', 'pgn'] as const).map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.subPageTabButton, activeTab === tab && styles.subPageTabButtonActive]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text style={[styles.subPageTabText, activeTab === tab && styles.subPageTabTextActive]}>
+                  {tab === 'analysis' && '🧠 Coach'}
+                  {tab === 'openings' && '📖 Book'}
+                  {tab === 'puzzles' && '🧩 Puzzles'}
+                  {tab === 'pgn' && '📂 PGN'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* 4. Dedicated Multi-Page View Containers */}
           <ScrollView style={styles.analysisScrollView} showsVerticalScrollIndicator={false}>
-            {settings.showComments && (
-              <View style={styles.cognitiveCard}>
-                <View style={styles.cognitiveCardHeader}>
-                  <Text style={styles.cognitiveHeaderTitle}>🧠 Grounded Coach</Text>
-                  <Text style={styles.cognitiveConceptTag}>{cognitiveInsight.concept}</Text>
-                </View>
-                <Text style={styles.cognitiveBodyText}>{cognitiveInsight.why}</Text>
-              </View>
+            {/* Page 1: Analysis & Cognitive Coach */}
+            {activeTab === 'analysis' && (
+              <>
+                {settings.showComments && (
+                  <View style={styles.cognitiveCard}>
+                    <View style={styles.cognitiveCardHeader}>
+                      <Text style={styles.cognitiveHeaderTitle}>🧠 Grounded Coach</Text>
+                      <Text style={styles.cognitiveConceptTag}>{cognitiveInsight.concept}</Text>
+                    </View>
+                    <Text style={styles.cognitiveBodyText}>{cognitiveInsight.why}</Text>
+                  </View>
+                )}
+
+                {settings.showIndianLines && (
+                  <View style={styles.indianLinesCard}>
+                    <Text style={styles.indianLinesTitle}>🇮🇳 Indian Lines Variation:</Text>
+                    <Text style={styles.indianLinesBody}>
+                      King's Indian / Queen's Indian Defense Structure: 1. d4 Nf6 2. c4 e6 3. Nf3 b6.
+                    </Text>
+                  </View>
+                )}
+              </>
             )}
 
-            {/* Indian Lines Opening Panel (Controlled by settings.showIndianLines) */}
-            {settings.showIndianLines && (
-              <View style={styles.indianLinesCard}>
-                <Text style={styles.indianLinesTitle}>🇮🇳 Indian Lines Variation:</Text>
-                <Text style={styles.indianLinesBody}>
-                  King's Indian / Queen's Indian Defense Structure: 1. d4 Nf6 2. c4 e6 3. Nf3 b6 (Fianchetto preparation).
+            {/* Page 2: ECO Opening Book & Master DB */}
+            {activeTab === 'openings' && (
+              <View style={styles.explorerCard}>
+                <View style={styles.explorerHeaderRow}>
+                  <Text style={styles.explorerTitle}>📖 {detectedEco.name}</Text>
+                  <View style={styles.ecoTagSmall}>
+                    <Text style={styles.ecoTagSmallText}>{detectedEco.eco}</Text>
+                  </View>
+                </View>
+                <Text style={styles.explorerBody}>
+                  {chess.history().length === 0 
+                    ? '1. e4 (48% win), 1. d4 (36% win), 1. Nf3 (9% win), 1. c4 (5% win)' 
+                    : `Active Variation: ${chess.history().join(' ')}`}
                 </Text>
               </View>
             )}
 
-            {/* Open Explorer Panel (Controlled by settings.openExplorer) */}
-            {settings.openExplorer && (
-              <View style={styles.explorerCard}>
-                <Text style={styles.explorerTitle}>📖 Opening Explorer (Lichess Master DB):</Text>
-                <Text style={styles.explorerBody}>
-                  {chess.history().length === 0 ? 'Initial Position: 1. e4 (48%), 1. d4 (36%), 1. Nf3 (9%), 1. c4 (5%)' : `Current Position: ${chess.history().join(' ')}`}
+            {/* Page 3: Daily Tactical Puzzles */}
+            {activeTab === 'puzzles' && (
+              <View style={styles.puzzleCard}>
+                <View style={styles.puzzleHeaderRow}>
+                  <Text style={styles.puzzleTitle}>🧩 Tactical Challenge #{currentPuzzleIdx + 1}</Text>
+                  <Text style={styles.puzzleRatingBadge}>{DAILY_PUZZLES[currentPuzzleIdx].rating} ELO</Text>
+                </View>
+                <Text style={styles.puzzleThemeText}>Theme: {DAILY_PUZZLES[currentPuzzleIdx].theme}</Text>
+                <Text style={styles.puzzleDescText}>{DAILY_PUZZLES[currentPuzzleIdx].description}</Text>
+                
+                <View style={styles.puzzleActionRow}>
+                  <TouchableOpacity
+                    style={styles.puzzleLoadButton}
+                    onPress={() => {
+                      chess.load(DAILY_PUZZLES[currentPuzzleIdx].fen);
+                      setHistoryMoves([]);
+                      setCurrentMoveIndex(-1);
+                      syncBoard();
+                    }}
+                  >
+                    <Text style={styles.puzzleLoadButtonText}>Load onto Board</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.puzzleNextButton}
+                    onPress={() => {
+                      const next = (currentPuzzleIdx + 1) % DAILY_PUZZLES.length;
+                      setCurrentPuzzleIdx(next);
+                      chess.load(DAILY_PUZZLES[next].fen);
+                      setHistoryMoves([]);
+                      setCurrentMoveIndex(-1);
+                      syncBoard();
+                    }}
+                  >
+                    <Text style={styles.puzzleNextButtonText}>Next Puzzle →</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Page 4: PGN Manager */}
+            {activeTab === 'pgn' && (
+              <View style={styles.pgnCard}>
+                <Text style={styles.pgnCardTitle}>📂 PGN Game Notation</Text>
+                <Text style={styles.pgnContentText}>
+                  {chess.pgn() || '[Event "Casual Game"]\n[Site "Chess Coach"]\n1. --'}
                 </Text>
               </View>
             )}
@@ -1604,5 +1697,166 @@ const styles = StyleSheet.create({
   variantItemTextActive: {
     color: '#1D4ED8',
     fontWeight: '700',
+  },
+  // ECO Badge
+  ecoBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  ecoBadgeText: {
+    color: '#1D4ED8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  // Sub-page Tabs
+  subPageTabRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(241, 245, 249, 0.85)',
+    borderRadius: 12,
+    padding: 3,
+    marginVertical: 4,
+  },
+  subPageTabButton: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderRadius: 9,
+  },
+  subPageTabButtonActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  subPageTabText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  subPageTabTextActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  // Opening Explorer Header
+  explorerHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  ecoTagSmall: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  ecoTagSmallText: {
+    color: '#1E40AF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  // Puzzle Card
+  puzzleCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  puzzleHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  puzzleTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  puzzleRatingBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#059669',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  puzzleThemeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563EB',
+    marginBottom: 2,
+  },
+  puzzleDescText: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 15,
+    marginBottom: 8,
+  },
+  puzzleActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  puzzleLoadButton: {
+    flex: 1,
+    backgroundColor: '#2563EB',
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  puzzleLoadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  puzzleNextButton: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  puzzleNextButtonText: {
+    color: '#334155',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  // PGN Card
+  pgnCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  pgnCardTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  pgnContentText: {
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: '#334155',
+    lineHeight: 16,
   },
 });
