@@ -19,6 +19,7 @@ import { identifyEco } from './src/engine/ecoService';
 import { DAILY_PUZZLES, ChessPuzzle } from './src/engine/puzzleService';
 import { ChessBoardView } from './src/components/ChessBoardView';
 import { ChessgroundView } from './src/components/ChessgroundView';
+import { MultiplayerModal } from './src/components/MultiplayerModal';
 import { sensoryAudioEngine } from './src/engine/sensoryAnchoring';
 import { lichessApiService } from './src/engine/lichessApiService';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
@@ -122,6 +123,8 @@ export default function App() {
   const selectedEditorPiece = useChessStore((s) => s.selectedEditorPiece);
   const lichessUser = useChessStore((s) => s.lichessUser);
   const settings = useChessStore((s) => s.settings);
+
+  const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
 
   // Zustand Store Actions
   const setScreen = useChessStore((s) => s.setScreen);
@@ -491,6 +494,33 @@ export default function App() {
                   </View>
                 </View>
               </View>
+
+              {/* Lichess Multiplayer & Online Challenges Card */}
+              <TouchableOpacity
+                style={styles.multiplayerHomeCard}
+                activeOpacity={0.88}
+                onPress={() => setIsMultiplayerOpen(true)}
+              >
+                <View style={styles.multiplayerLeft}>
+                  <View style={styles.multiplayerIconWrapper}>
+                    <Swords size={20} color="#FFFFFF" strokeWidth={2.4} />
+                  </View>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={styles.multiplayerTitle}>Lichess Multiplayer</Text>
+                      <View style={styles.multiplayerLiveBadge}>
+                        <Text style={styles.multiplayerLiveBadgeText}>ONLINE</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.multiplayerDesc}>
+                      Create open challenge links, invite friends & resume live games
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.multiplayerPill}>
+                  <Text style={styles.multiplayerPillText}>Lobby ⚡</Text>
+                </View>
+              </TouchableOpacity>
 
               {/* Main Play & Analysis Card */}
               <TouchableOpacity
@@ -1558,6 +1588,14 @@ export default function App() {
             </View>
           </View>
         </Modal>
+
+        {/* ======================================================== */}
+        {/* 🌐 4. LICHESS MULTIPLAYER & CHALLENGE HUB MODAL */}
+        {/* ======================================================== */}
+        <MultiplayerModal
+          visible={isMultiplayerOpen}
+          onClose={() => setIsMultiplayerOpen(false)}
+        />
       </SafeAreaView>
       </GestureHandlerRootView>
     </SafeAreaProvider>
@@ -2679,5 +2717,72 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#1D4ED8',
+  },
+  // Multiplayer Hub Card Styles
+  multiplayerHomeCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  multiplayerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  multiplayerIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  multiplayerTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginRight: 6,
+  },
+  multiplayerLiveBadge: {
+    backgroundColor: '#10B981',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  multiplayerLiveBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  multiplayerDesc: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  multiplayerPill: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginLeft: 6,
+  },
+  multiplayerPillText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

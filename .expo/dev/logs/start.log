@@ -474,3 +474,4 @@
 {"_e":"metro:bundling:progress","_t":1790280989121,"id":"1a","progress":0,"total":1,"current":0}
 {"_e":"metro:bundling:progress","_t":1790280989654,"id":"1a","progress":0,"total":1,"current":0}
 {"_e":"metro:bundling:done","_t":1790280989807,"id":"1a","total":1,"ms":689.841875}
+{"_e":"metro:bundling:failed","_t":1790281346737,"id":null,"message":"SyntaxError: /root/chess-coach-app/App.tsx: Expected corresponding JSX closing tag for <View>. (1596:6)\n\n  1594 |           onClose={() => setIsMultiplayerOpen(false)}\n  1595 |         />\n> 1596 |       </SafeAreaView>\n       |       ^\n  1597 |       </GestureHandlerRootView>\n  1598 |     </SafeAreaProvider>\n  1599 |   );","importStack":null,"filename":"App.tsx","targetModuleName":null,"originModulePath":null}
