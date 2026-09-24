@@ -4,6 +4,7 @@ import { Square, Chess } from 'chess.js';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import { DraggablePiece } from './DraggablePiece';
 import { BoardTheme, PieceTheme } from '../state/chessStore';
+import { JevVisualImprint } from '../engine/jevFilter';
 
 interface ChessBoardViewProps {
   chess: Chess;
@@ -23,6 +24,7 @@ interface ChessBoardViewProps {
   pieceTheme?: PieceTheme;
   sideEvalScore?: { cp: number | null; mate: number | null };
   showSideEvalBar?: boolean;
+  jevImprint?: JevVisualImprint;
 }
 
 const BOARD_THEME_COLORS: Record<BoardTheme, { light: string; dark: string }> = {
@@ -32,6 +34,17 @@ const BOARD_THEME_COLORS: Record<BoardTheme, { light: string; dark: string }> = 
   'Midnight Slate': { light: '#CBD5E1', dark: '#475569' },
   'Charcoal Dark': { light: '#E2E8F0', dark: '#334155' },
 };
+
+function getSquareCoords(sq: string, isWhiteOrientation: boolean, squareSize: number) {
+  const file = sq.charCodeAt(0) - 'a'.charCodeAt(0);
+  const rank = parseInt(sq[1], 10) - 1;
+  const col = isWhiteOrientation ? file : 7 - file;
+  const row = isWhiteOrientation ? 7 - rank : rank;
+  return {
+    x: col * squareSize + squareSize / 2,
+    y: row * squareSize + squareSize / 2,
+  };
+}
 
 export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
   ({
@@ -52,6 +65,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
     pieceTheme = 'Vector Neo',
     sideEvalScore,
     showSideEvalBar = true,
+    jevImprint,
   }) => {
     const squareSize = boardSize / 8;
     const ranks = isWhiteOrientation ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
@@ -64,27 +78,31 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
       if (sideEvalScore.mate !== null) {
         whitePercentage = sideEvalScore.mate > 0 ? 98 : 2;
       } else if (sideEvalScore.cp !== null) {
-        // Sigmoid mapping for smooth score representation
         const clampedCp = Math.max(-10, Math.min(10, sideEvalScore.cp));
         whitePercentage = 50 + (clampedCp / 10) * 45;
       }
     }
-    // Flip bar direction if board is flipped
     const topBarHeightPercent = isWhiteOrientation ? 100 - whitePercentage : whitePercentage;
+
+    // Vector Clamp Ray calculation from Jev System-1
+    const vectorClampPoints = jevImprint?.vectorClampLine
+      ? {
+          from: getSquareCoords(jevImprint.vectorClampLine.from, isWhiteOrientation, squareSize),
+          to: getSquareCoords(jevImprint.vectorClampLine.to, isWhiteOrientation, squareSize),
+        }
+      : null;
 
     return (
       <View style={styles.boardWithSideBarWrapper}>
         {/* 📊 Side Evaluation Bar Beside the Board */}
         {showSideEvalBar && (
           <View style={[styles.sideEvalBar, { height: boardSize }]}>
-            {/* Black Portion (Top) */}
             <View
               style={[
                 styles.sideEvalBlackFill,
                 { height: `${topBarHeightPercent}%` },
               ]}
             />
-            {/* White Portion (Bottom) */}
             <View style={styles.sideEvalWhiteFill} />
           </View>
         )}
@@ -103,6 +121,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                     lastMove?.from === squareName || lastMove?.to === squareName;
                   const isHero = heroSquare === squareName;
                   const isThreat = threatsEnabled && piece && piece.color !== chess.turn();
+                  const isJevCritical = jevImprint && jevImprint.criticalSquare === squareName;
 
                   return (
                     <TouchableOpacity
@@ -120,6 +139,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                         isLastMoveSquare && styles.lastMoveSquare,
                         isHero && styles.heroSquareHighlight,
                         isThreat && styles.threatHighlight,
+                        isJevCritical && styles.jevCriticalSquareGlow,
                       ]}
                     >
                       {/* Rank Coordinates */}
@@ -180,32 +200,49 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
               </View>
             ))}
 
-            {/* SVG Best Move & Last Move Arrows */}
-            {bestMoveArrow && (
-              <Svg
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-                width={boardSize}
-                height={boardSize}
-              >
+            {/* SVG Vectors & High-Speed Sensory Laser Overlay */}
+            <Svg
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+              width={boardSize}
+              height={boardSize}
+            >
+              {/* 1. Jev Vector Clamp Laser Trajectory */}
+              {vectorClampPoints && (
                 <Line
-                  x1={bestMoveArrow.from.x}
-                  y1={bestMoveArrow.from.y}
-                  x2={bestMoveArrow.to.x}
-                  y2={bestMoveArrow.to.y}
-                  stroke={bestMoveArrow.isEngine ? '#06B6D4' : 'rgba(255, 255, 255, 0.45)'}
-                  strokeWidth={bestMoveArrow.isEngine ? '5' : '3.5'}
+                  x1={vectorClampPoints.from.x}
+                  y1={vectorClampPoints.from.y}
+                  x2={vectorClampPoints.to.x}
+                  y2={vectorClampPoints.to.y}
+                  stroke="#3B82F6"
+                  strokeWidth="6"
+                  strokeOpacity="0.85"
                   strokeLinecap="round"
-                  strokeDasharray={bestMoveArrow.isEngine ? '7, 4' : undefined}
                 />
-                <SvgCircle
-                  cx={bestMoveArrow.to.x}
-                  cy={bestMoveArrow.to.y}
-                  r="6"
-                  fill={bestMoveArrow.isEngine ? '#06B6D4' : '#FFFFFF'}
-                />
-              </Svg>
-            )}
+              )}
+
+              {/* 2. Stockfish / Leela Best Move Arrow */}
+              {bestMoveArrow && (
+                <>
+                  <Line
+                    x1={bestMoveArrow.from.x}
+                    y1={bestMoveArrow.from.y}
+                    x2={bestMoveArrow.to.x}
+                    y2={bestMoveArrow.to.y}
+                    stroke={bestMoveArrow.isEngine ? '#06B6D4' : 'rgba(255, 255, 255, 0.45)'}
+                    strokeWidth={bestMoveArrow.isEngine ? '5' : '3.5'}
+                    strokeLinecap="round"
+                    strokeDasharray={bestMoveArrow.isEngine ? '7, 4' : undefined}
+                  />
+                  <SvgCircle
+                    cx={bestMoveArrow.to.x}
+                    cy={bestMoveArrow.to.y}
+                    r="6"
+                    fill={bestMoveArrow.isEngine ? '#06B6D4' : '#FFFFFF'}
+                  />
+                </>
+              )}
+            </Svg>
           </View>
         </View>
       </View>
@@ -274,6 +311,11 @@ const styles = StyleSheet.create({
   },
   threatHighlight: {
     backgroundColor: 'rgba(239, 68, 68, 0.28)',
+  },
+  jevCriticalSquareGlow: {
+    backgroundColor: 'rgba(239, 68, 68, 0.45)',
+    borderWidth: 2,
+    borderColor: '#EF4444',
   },
   coordRank: {
     position: 'absolute',

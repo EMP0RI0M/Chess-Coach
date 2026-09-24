@@ -1,6 +1,6 @@
 import { searchBestMove, evaluateBoardState } from './androidChessEngine';
 import { rustEngineBridge } from './rustWasmEngine';
-import { jevCognitiveFilter } from './jevFilter';
+import { jevCognitiveFilter, JevVisualImprint } from './jevFilter';
 import { Chess } from 'chess.js';
 
 export interface WorkerMessage {
@@ -19,6 +19,7 @@ export interface WorkerResponse {
     scoreCp: number | null;
     depth: number;
     pvLine: string;
+    imprint?: JevVisualImprint;
   };
   error?: string;
 }
@@ -51,11 +52,14 @@ class StockfishWorkerController {
       const calcId = ++this.currentCalculationId;
       const { fen, depth = 3, movetime = 800 } = msg.data;
 
-      // 1. Instant static zero-allocation bitboard evaluation
+      // 1. Instant static zero-allocation bitboard evaluation & Jev System-One Imprinting
       try {
         const bitboardEval = rustEngineBridge.evaluateBitboard(fen);
         const tempChess = new Chess(fen);
         const staticScore = evaluateBoardState(tempChess) / 100 || bitboardEval.scoreCp;
+        const legalMoves = tempChess.moves({ verbose: true });
+        const jevDecision = jevCognitiveFilter.filterPosition(fen, legalMoves);
+
         this.emit({
           type: 'EVALUATION',
           data: {
@@ -63,14 +67,11 @@ class StockfishWorkerController {
             scoreCp: staticScore,
             depth: bitboardEval.depth,
             pvLine: '',
+            imprint: jevDecision.imprint,
           },
         });
 
-        // 2. Jev System-One Non-Autoregressive Policy Filter (<3ms)
-        const legalMoves = tempChess.moves({ verbose: true });
-        const jevDecision = jevCognitiveFilter.filterPosition(fen, legalMoves);
-
-        // If Jev is 99% confident on obvious move (e.g. forced recapture/check escape), bypass deep search
+        // 2. High-confidence fast policy bypass (<5ms forward pass)
         if (jevDecision.isObviousMove && jevDecision.policyMove) {
           this.emit({
             type: 'MOVE_FOUND',
@@ -79,6 +80,7 @@ class StockfishWorkerController {
               scoreCp: staticScore,
               depth: 1,
               pvLine: `⚡ Jev Fast-Policy: ${jevDecision.cognitiveInsight}`,
+              imprint: jevDecision.imprint,
             },
           });
           return;
@@ -110,6 +112,7 @@ class StockfishWorkerController {
               scoreCp: searchResult.scoreCp,
               depth: allocatedDepth,
               pvLine: pvStr,
+              imprint: jevDecision.imprint,
             },
           });
         } catch (err: any) {

@@ -532,6 +532,7 @@ export default function App() {
                 pieceTheme={settings.pieceTheme}
                 sideEvalScore={{ cp: evaluation.scoreCp, mate: evaluation.scoreMate }}
                 showSideEvalBar={settings.showSideEvalBar}
+                jevImprint={evaluation.imprint}
               />
 
               {/* Board Editor Piece Palette */}

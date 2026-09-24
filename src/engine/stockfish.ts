@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createStockfishWorker } from './stockfish.worker';
+import { JevVisualImprint } from './jevFilter';
 
 export interface EngineEvaluation {
   depth: number;
@@ -8,6 +9,7 @@ export interface EngineEvaluation {
   bestMove: string | null;
   pvLine: string;
   isCalculating: boolean;
+  imprint?: JevVisualImprint;
 }
 
 export function useStockfishEngine() {
@@ -18,6 +20,7 @@ export function useStockfishEngine() {
     bestMove: null,
     pvLine: '',
     isCalculating: false,
+    imprint: undefined,
   });
 
   const [engineReady, setEngineReady] = useState(false);
@@ -43,6 +46,7 @@ export function useStockfishEngine() {
           setEvaluation((prev) => ({
             ...prev,
             scoreCp: event.data!.scoreCp,
+            imprint: event.data!.imprint,
           }));
         }
       } else if (event.type === 'MOVE_FOUND' && event.data) {
@@ -55,6 +59,7 @@ export function useStockfishEngine() {
           bestMove: event.data.bestMove,
           pvLine: event.data.pvLine,
           isCalculating: false,
+          imprint: event.data.imprint,
         });
       }
     });
