@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Chess Coach",
+    "slug": "chess-coach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F7FB"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.chesscoach.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#F4F7FB"
+      },
+      "package": "com.chesscoach.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

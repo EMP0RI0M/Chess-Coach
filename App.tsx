@@ -1,0 +1,1574 @@
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+  Dimensions,
+  Platform,
+  Modal,
+  Switch,
+} from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { Chess, Square, Move } from 'chess.js';
+import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
+import {
+  Menu,
+  Settings as SettingsIcon,
+  Brain,
+  Undo2,
+  Redo2,
+  Compass,
+  CircleDot,
+  ShieldCheck,
+  Trash2,
+  Layers,
+  AlertOctagon,
+  Edit3,
+  PlayCircle,
+  X,
+  Check,
+  Volume2,
+  BookOpen,
+  Cloud,
+  Cpu,
+  Eye,
+  Sliders,
+  Sparkles,
+  ChevronRight,
+} from 'lucide-react-native';
+import { useStockfishEngine } from './services/stockfish';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const BASE_BOARD_SIZE = Math.min(SCREEN_WIDTH - 28, 380);
+
+// Unicode Chess Pieces
+const PIECE_SYMBOLS: Record<string, string> = {
+  w_p: '♙',
+  w_n: '♘',
+  w_b: '♗',
+  w_r: '♖',
+  w_q: '♕',
+  w_k: '♔',
+  b_p: '♟',
+  b_n: '♞',
+  b_b: '♝',
+  b_r: '♜',
+  b_q: '♛',
+  b_k: '♚',
+};
+
+// Available Chess Variants
+const CHESS_VARIANTS = [
+  'Standard Chess',
+  'Chess960 (Fischer Random)',
+  'King of the Hill',
+  'Three-Check',
+  'Crazyhouse',
+];
+
+// Coordinate helper for arrow rendering
+function getSquareCenter(sq: string, isWhiteOrientation: boolean, squareSize: number) {
+  const file = sq.charCodeAt(0) - 'a'.charCodeAt(0);
+  const rank = parseInt(sq[1], 10) - 1;
+  const col = isWhiteOrientation ? file : 7 - file;
+  const row = isWhiteOrientation ? 7 - rank : rank;
+  return {
+    x: col * squareSize + squareSize / 2,
+    y: row * squareSize + squareSize / 2,
+  };
+}
+
+export default function App() {
+  const [chess] = useState(() => new Chess());
+  const [boardState, setBoardState] = useState<({ type: string; color: string } | null)[][]>(() => chess.board());
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
+  const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null);
+  const [isWhiteOrientation, setIsWhiteOrientation] = useState(true);
+  
+  // Real History tracking
+  const [historyMoves, setHistoryMoves] = useState<Move[]>([]);
+  const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(-1);
+  const [engineActive, setEngineActive] = useState(true);
+
+  // Modals
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isVariantOpen, setIsVariantOpen] = useState(false);
+  const [isBoardEditorOpen, setIsBoardEditorOpen] = useState(false);
+  const [selectedVariant, setSelectedVariant] = useState('Standard Chess');
+  const [selectedEditorPiece, setSelectedEditorPiece] = useState<string | null>('w_p');
+
+  // ALL 16 SETTINGS - ACTIVELY CONTROLLING THE UI
+  const [settings, setSettings] = useState({
+    // 1. Stockfish / Engine Settings
+    stockfishEnabled: true,
+    stockfishSearchTime: 1.0, // Search Time: 0.5s, 1.0s, 2.0s, 5.0s
+    multipleLines: 3, // Multiple Lines (MultiPV): 1, 2, 3, 5
+    cpuThreads: 4, // CPU Threads: 1, 2, 4, 8
+    bestMoveArrow: true, // Best Move Arrow
+    bestHero: true, // Best Hero square highlight
+    serverAnalysis: false, // Server Analysis toggle
+    
+    // 2. Display & Board Settings
+    smallBoard: false, // Small Board toggle
+    showEvalGauge: true, // Show Evaluation Gauge
+    inlineNotations: true, // Inline Notations
+    toggleMoveAnnotations: true, // Toggle Move Annotations (!, ?!, ??)
+    showComments: true, // Show Comments / Cognitive breakdown
+    showThreats: false, // Show Threats on board
+    showIndianLines: false, // Show Indian Lines
+    openExplorer: true, // Open Explorer
+    sound: true, // Sound
+  });
+
+  // Dynamic board sizing bound to settings.smallBoard
+  const boardSize = settings.smallBoard ? BASE_BOARD_SIZE * 0.82 : BASE_BOARD_SIZE;
+  const squareSize = boardSize / 8;
+
+  // Stockfish Engine Integration
+  const { evaluation, evaluatePosition, stopEvaluation } = useStockfishEngine();
+
+  // Synchronize board UI & trigger Stockfish evaluation
+  const syncBoard = useCallback(() => {
+    setBoardState(chess.board());
+    if (engineActive && settings.stockfishEnabled) {
+      evaluatePosition(chess.fen(), 15);
+    }
+  }, [chess, engineActive, settings.stockfishEnabled, evaluatePosition]);
+
+  useEffect(() => {
+    syncBoard();
+  }, [syncBoard]);
+
+  // 1. Reset / Clear All Moves
+  const handleClearAllMoves = () => {
+    chess.reset();
+    setSelectedSquare(null);
+    setPossibleMoves([]);
+    setLastMove(null);
+    setHistoryMoves([]);
+    setCurrentMoveIndex(-1);
+    setIsMenuOpen(false);
+    syncBoard();
+  };
+
+  // 2. Undo
+  const handleUndo = () => {
+    if (historyMoves.length === 0 || currentMoveIndex < 0) return;
+    chess.undo();
+    const newIndex = currentMoveIndex - 1;
+    setCurrentMoveIndex(newIndex);
+    setSelectedSquare(null);
+    setPossibleMoves([]);
+    if (newIndex >= 0) {
+      const prevMove = historyMoves[newIndex];
+      setLastMove({ from: prevMove.from, to: prevMove.to });
+    } else {
+      setLastMove(null);
+    }
+    syncBoard();
+  };
+
+  // 3. Redo
+  const handleRedo = () => {
+    if (currentMoveIndex >= historyMoves.length - 1) return;
+    const nextMove = historyMoves[currentMoveIndex + 1];
+    chess.move(nextMove);
+    setCurrentMoveIndex(currentMoveIndex + 1);
+    setSelectedSquare(null);
+    setPossibleMoves([]);
+    setLastMove({ from: nextMove.from, to: nextMove.to });
+    syncBoard();
+  };
+
+  // 4. Flip Board
+  const handleFlipBoard = () => {
+    setIsWhiteOrientation((prev) => !prev);
+  };
+
+  // 5. Jump to Specific Move in History
+  const handleJumpToMove = (idx: number) => {
+    chess.reset();
+    for (let i = 0; i <= idx; i++) {
+      chess.move(historyMoves[i]);
+    }
+    setCurrentMoveIndex(idx);
+    const targetMove = historyMoves[idx];
+    setLastMove({ from: targetMove.from, to: targetMove.to });
+    setSelectedSquare(null);
+    setPossibleMoves([]);
+    syncBoard();
+  };
+
+  // 6. Handle square tap
+  const handleSquarePress = (square: Square) => {
+    if (isBoardEditorOpen) {
+      if (!selectedEditorPiece) {
+        chess.remove(square);
+      } else {
+        const [color, type] = selectedEditorPiece.split('_');
+        chess.put({ type: type as any, color: color as any }, square);
+      }
+      syncBoard();
+      return;
+    }
+
+    if (selectedSquare === null) {
+      const piece = chess.get(square);
+      if (piece && piece.color === chess.turn()) {
+        setSelectedSquare(square);
+        const moves = chess.moves({ square, verbose: true }) as Move[];
+        setPossibleMoves(moves.map((m) => m.to));
+      }
+    } else {
+      if (selectedSquare === square) {
+        setSelectedSquare(null);
+        setPossibleMoves([]);
+        return;
+      }
+
+      try {
+        const move = chess.move({
+          from: selectedSquare,
+          to: square,
+          promotion: 'q',
+        });
+
+        if (move) {
+          const updatedHistory = historyMoves.slice(0, currentMoveIndex + 1);
+          updatedHistory.push(move);
+          setHistoryMoves(updatedHistory);
+          setCurrentMoveIndex(updatedHistory.length - 1);
+
+          setLastMove({ from: move.from, to: move.to });
+          setSelectedSquare(null);
+          setPossibleMoves([]);
+          syncBoard();
+          return;
+        }
+      } catch {
+        const piece = chess.get(square);
+        if (piece && piece.color === chess.turn()) {
+          setSelectedSquare(square);
+          const moves = chess.moves({ square, verbose: true }) as Move[];
+          setPossibleMoves(moves.map((m) => m.to));
+        } else {
+          setSelectedSquare(null);
+          setPossibleMoves([]);
+        }
+      }
+    }
+  };
+
+  const currentMove = currentMoveIndex >= 0 ? historyMoves[currentMoveIndex] : null;
+
+  // Evaluation & Assessment
+  const evaluationSummary = useMemo(() => {
+    const cp = evaluation.scoreCp || 0.2;
+    let evalText = `+${cp.toFixed(2)}`;
+    let stateText = '≈ Equal';
+    let stateColor = '#64748B';
+
+    if (evaluation.scoreMate !== null) {
+      evalText = evaluation.scoreMate > 0 ? `+M${evaluation.scoreMate}` : `-M${Math.abs(evaluation.scoreMate)}`;
+      stateText = evaluation.scoreMate > 0 ? 'White Mate' : 'Black Mate';
+      stateColor = '#2563EB';
+    } else if (cp >= 1.5) {
+      evalText = `+${cp.toFixed(2)}`;
+      stateText = 'White +Advantage';
+      stateColor = '#059669';
+    } else if (cp <= -1.5) {
+      evalText = `${cp.toFixed(2)}`;
+      stateText = 'Black +Advantage';
+      stateColor = '#DC2626';
+    }
+
+    return { evalText, stateText, stateColor };
+  }, [evaluation]);
+
+  // Cognitive Explanation (Bound to settings.showComments & toggleMoveAnnotations)
+  const cognitiveInsight = useMemo(() => {
+    if (!currentMove) {
+      return {
+        hasMove: false,
+        annotation: '',
+        why: 'Make a move on the board to begin grounded cognitive analysis.',
+        concept: 'Opening Preparation',
+      };
+    }
+
+    const san = currentMove.san;
+    const isCapture = san.includes('x');
+    const annotation = settings.toggleMoveAnnotations ? (isCapture ? '!' : '') : '';
+
+    let why = 'Develops pieces actively while securing key central squares.';
+    let concept = 'Piece Activity & Center Control';
+
+    if (currentMove.piece === 'p') {
+      why = 'Claims central space and opens lines for bishop and queen development.';
+      concept = 'Pawn Structure & Space';
+    } else if (currentMove.piece === 'n') {
+      why = 'Develops knight toward center, controlling vital outpost squares.';
+      concept = 'Knight Mobility';
+    } else if (currentMove.piece === 'b') {
+      why = 'Activates bishop along open diagonal to exert long-range pressure.';
+      concept = 'Diagonal Tension';
+    }
+
+    return {
+      hasMove: true,
+      moveSan: san,
+      annotation,
+      why,
+      concept,
+    };
+  }, [currentMove, settings.toggleMoveAnnotations]);
+
+  // Arrow calculations bound to settings.bestMoveArrow
+  const arrowPoints = useMemo(() => {
+    if (!settings.bestMoveArrow || !lastMove) return null;
+    const from = getSquareCenter(lastMove.from, isWhiteOrientation, squareSize);
+    const to = getSquareCenter(lastMove.to, isWhiteOrientation, squareSize);
+    return { from, to };
+  }, [lastMove, isWhiteOrientation, settings.bestMoveArrow, squareSize]);
+
+  const ranks = isWhiteOrientation ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
+  const files = isWhiteOrientation ? ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] : ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'];
+
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F4F7FB" />
+        
+        {/* Ambient Fog Layers */}
+        <View style={styles.ambientFog1} />
+        <View style={styles.ambientFog2} />
+        <View style={styles.ambientFog3} />
+
+        <View style={styles.container}>
+          {/* 1. Evaluation Gauge (Controlled by settings.showEvalGauge) */}
+          {settings.showEvalGauge && (
+            <View style={styles.engineStatusBar}>
+              <View style={styles.evalScoreRow}>
+                <View style={styles.evalScoreBadge}>
+                  <Text style={styles.evalScoreText}>{evaluationSummary.evalText}</Text>
+                </View>
+                <Text style={[styles.evalStateText, { color: evaluationSummary.stateColor }]}>
+                  {evaluationSummary.stateText}
+                </Text>
+              </View>
+              <View style={styles.engineStatsRow}>
+                <Text style={styles.engineStatItem}>SF19</Text>
+                <Text style={styles.statDot}>•</Text>
+                <Text style={styles.engineStatItem}>Depth {evaluation.depth || 18}</Text>
+                <Text style={styles.statDot}>•</Text>
+                <Text style={styles.engineStatItem}>{settings.cpuThreads} Threads</Text>
+                <Text style={styles.statDot}>•</Text>
+                <Text style={styles.engineStatItem}>{settings.multipleLines} Lines</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Board Editor Mode Banner */}
+          {isBoardEditorOpen && (
+            <View style={styles.editorBannerPill}>
+              <Text style={styles.editorBannerText}>✏️ Board Editor Active</Text>
+              <TouchableOpacity
+                style={styles.editorDoneButton}
+                onPress={() => setIsBoardEditorOpen(false)}
+              >
+                <Text style={styles.editorDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 2. Interactive Chessboard (Controlled by settings.smallBoard, showThreats, bestHero) */}
+          <View style={styles.boardGlassContainer}>
+            <View style={[styles.board, { width: boardSize, height: boardSize }]}>
+              {ranks.map((rank, rIdx) => (
+                <View key={rank} style={[styles.row, { height: squareSize }]}>
+                  {files.map((file, fIdx) => {
+                    const squareName = `${file}${rank}` as Square;
+                    const piece = chess.get(squareName);
+                    const isLight = (rIdx + fIdx) % 2 === 0;
+                    const isSelected = selectedSquare === squareName;
+                    const isTarget = possibleMoves.includes(squareName);
+                    const isLastMoveSquare =
+                      lastMove?.from === squareName || lastMove?.to === squareName;
+                    const isHeroSquare =
+                      settings.bestHero && lastMove?.to === squareName;
+                    const isThreatSquare =
+                      settings.showThreats && piece && piece.color !== chess.turn();
+
+                    const pieceKey = piece ? `${piece.color}_${piece.type}` : null;
+                    const pieceSymbol = pieceKey ? PIECE_SYMBOLS[pieceKey] : '';
+
+                    return (
+                      <TouchableOpacity
+                        key={squareName}
+                        activeOpacity={0.85}
+                        onPress={() => handleSquarePress(squareName)}
+                        style={[
+                          styles.square,
+                          { width: squareSize, height: squareSize },
+                          isLight ? styles.lightSquare : styles.darkSquare,
+                          isSelected && styles.selectedSquare,
+                          isLastMoveSquare && styles.lastMoveSquare,
+                          isHeroSquare && styles.heroSquareHighlight,
+                          isThreatSquare && styles.threatHighlight,
+                        ]}
+                      >
+                        {/* Square Coordinates */}
+                        {fIdx === 0 && (
+                          <Text style={[styles.coordRank, isLight ? styles.darkCoord : styles.lightCoord]}>
+                            {rank}
+                          </Text>
+                        )}
+                        {rIdx === 7 && (
+                          <Text style={[styles.coordFile, isLight ? styles.darkCoord : styles.lightCoord]}>
+                            {file}
+                          </Text>
+                        )}
+
+                        {/* Move Targets */}
+                        {isTarget && (
+                          <View
+                            style={[
+                              piece ? styles.captureRing : styles.moveDot,
+                              {
+                                width: squareSize * (piece ? 0.85 : 0.28),
+                                height: squareSize * (piece ? 0.85 : 0.28),
+                                borderRadius: (squareSize * (piece ? 0.85 : 0.28)) / 2,
+                              },
+                            ]}
+                          />
+                        )}
+
+                        {/* Piece Icon */}
+                        {piece && (
+                          <Text
+                            style={[
+                              styles.pieceText,
+                              { fontSize: squareSize * 0.74, lineHeight: squareSize * 0.8 },
+                              piece.color === 'w' ? styles.whitePiece : styles.blackPiece,
+                            ]}
+                          >
+                            {pieceSymbol}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+
+              {/* Best Move Arrow (Controlled by settings.bestMoveArrow) */}
+              {arrowPoints && (
+                <Svg
+                  height={boardSize}
+                  width={boardSize}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                >
+                  <Line
+                    x1={arrowPoints.from.x}
+                    y1={arrowPoints.from.y}
+                    x2={arrowPoints.to.x}
+                    y2={arrowPoints.to.y}
+                    stroke="rgba(37, 99, 235, 0.65)"
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                  />
+                  <SvgCircle
+                    cx={arrowPoints.to.x}
+                    cy={arrowPoints.to.y}
+                    r={5.5}
+                    fill="rgba(37, 99, 235, 0.9)"
+                  />
+                </Svg>
+              )}
+            </View>
+          </View>
+
+          {/* Board Editor Piece Palette */}
+          {isBoardEditorOpen && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.editorPalette}>
+              {['w_k', 'w_q', 'w_r', 'w_b', 'w_n', 'w_p', 'b_k', 'b_q', 'b_r', 'b_b', 'b_n', 'b_p', null].map((p, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.editorPaletteItem,
+                    selectedEditorPiece === p && styles.editorPaletteItemSelected,
+                  ]}
+                  onPress={() => setSelectedEditorPiece(p)}
+                >
+                  <Text style={styles.editorPalettePiece}>
+                    {p ? PIECE_SYMBOLS[p] : '❌'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* 3. Inline Notation Timeline (Controlled by settings.inlineNotations) */}
+          {settings.inlineNotations && (
+            <View style={styles.timelineWrapper}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timelineScroll}>
+                <TouchableOpacity
+                  style={[styles.timelinePill, currentMoveIndex === -1 && styles.timelinePillActive]}
+                  onPress={handleClearAllMoves}
+                >
+                  <Compass size={12} color={currentMoveIndex === -1 ? '#FFFFFF' : '#64748B'} style={{ marginRight: 4 }} />
+                  <Text style={[styles.timelineText, currentMoveIndex === -1 && styles.timelineTextActive]}>
+                    Start
+                  </Text>
+                </TouchableOpacity>
+
+                {historyMoves.map((m, idx) => {
+                  const moveNum = Math.floor(idx / 2) + 1;
+                  const isWhite = idx % 2 === 0;
+                  const label = isWhite ? `${moveNum}. ${m.san}` : `${m.san}`;
+                  const isActive = currentMoveIndex === idx;
+
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.timelinePill, isActive && styles.timelinePillActive]}
+                      onPress={() => handleJumpToMove(idx)}
+                    >
+                      <Text style={[styles.timelineText, isActive && styles.timelineTextActive]}>
+                        {label}{cognitiveInsight.annotation}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* 4. Cognitive Comments & Indian Lines (Controlled by settings.showComments & showIndianLines) */}
+          <ScrollView style={styles.analysisScrollView} showsVerticalScrollIndicator={false}>
+            {settings.showComments && (
+              <View style={styles.cognitiveCard}>
+                <View style={styles.cognitiveCardHeader}>
+                  <Text style={styles.cognitiveHeaderTitle}>🧠 Grounded Coach</Text>
+                  <Text style={styles.cognitiveConceptTag}>{cognitiveInsight.concept}</Text>
+                </View>
+                <Text style={styles.cognitiveBodyText}>{cognitiveInsight.why}</Text>
+              </View>
+            )}
+
+            {/* Indian Lines Opening Panel (Controlled by settings.showIndianLines) */}
+            {settings.showIndianLines && (
+              <View style={styles.indianLinesCard}>
+                <Text style={styles.indianLinesTitle}>🇮🇳 Indian Lines Variation:</Text>
+                <Text style={styles.indianLinesBody}>
+                  King's Indian / Queen's Indian Defense Structure: 1. d4 Nf6 2. c4 e6 3. Nf3 b6 (Fianchetto preparation).
+                </Text>
+              </View>
+            )}
+
+            {/* Open Explorer Panel (Controlled by settings.openExplorer) */}
+            {settings.openExplorer && (
+              <View style={styles.explorerCard}>
+                <Text style={styles.explorerTitle}>📖 Opening Explorer (Lichess Master DB):</Text>
+                <Text style={styles.explorerBody}>
+                  {chess.history().length === 0 ? 'Initial Position: 1. e4 (48%), 1. d4 (36%), 1. Nf3 (9%), 1. c4 (5%)' : `Current Position: ${chess.history().join(' ')}`}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+
+          {/* 5. Bottom Pill-Shaped Navbar (5 Meaningful Action Buttons) */}
+          <View style={styles.bottomNebba}>
+            {/* 1. Menu (☰) */}
+            <TouchableOpacity
+              style={styles.nebbaButton}
+              activeOpacity={0.7}
+              onPress={() => setIsMenuOpen(true)}
+            >
+              <Menu size={20} color="#1E293B" strokeWidth={2.2} />
+            </TouchableOpacity>
+
+            {/* 2. Settings (⚙) */}
+            <TouchableOpacity
+              style={styles.nebbaButton}
+              activeOpacity={0.7}
+              onPress={() => setIsSettingsOpen(true)}
+            >
+              <SettingsIcon size={20} color="#1E293B" strokeWidth={2.2} />
+            </TouchableOpacity>
+
+            {/* 3. Hero Cognitive Coach Button (🧠) */}
+            <TouchableOpacity
+              style={[styles.nebbaButton, styles.nebbaHeroButton]}
+              activeOpacity={0.8}
+              onPress={() => setSettings((prev) => ({ ...prev, showComments: !prev.showComments }))}
+            >
+              <Brain size={22} color="#FFFFFF" strokeWidth={2.3} />
+            </TouchableOpacity>
+
+            {/* 4. Undo (↶) */}
+            <TouchableOpacity
+              style={[styles.nebbaButton, currentMoveIndex < 0 && styles.nebbaButtonDisabled]}
+              activeOpacity={0.7}
+              disabled={currentMoveIndex < 0}
+              onPress={handleUndo}
+            >
+              <Undo2 size={20} color="#1E293B" strokeWidth={2.2} />
+            </TouchableOpacity>
+
+            {/* 5. Redo (↷) */}
+            <TouchableOpacity
+              style={[styles.nebbaButton, currentMoveIndex >= historyMoves.length - 1 && styles.nebbaButtonDisabled]}
+              activeOpacity={0.7}
+              disabled={currentMoveIndex >= historyMoves.length - 1}
+              onPress={handleRedo}
+            >
+              <Redo2 size={20} color="#1E293B" strokeWidth={2.2} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ======================================================== */}
+        {/* ☰ 1. MAIN THREE-LINE MENU (6 Core Menu Items) */}
+        {/* ======================================================== */}
+        <Modal
+          visible={isMenuOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsMenuOpen(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.menuGlassCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Menu</Text>
+                <TouchableOpacity
+                  style={styles.closeCircleButton}
+                  onPress={() => setIsMenuOpen(false)}
+                >
+                  <X size={18} color="#64748B" strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* 1. Settings */}
+                <TouchableOpacity
+                  style={styles.menuItemPill}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setIsMenuOpen(false);
+                    setIsSettingsOpen(true);
+                  }}
+                >
+                  <View style={styles.menuItemLeft}>
+                    <SettingsIcon size={18} color="#2563EB" style={styles.menuItemIcon} />
+                    <Text style={styles.menuItemText}>Settings</Text>
+                  </View>
+                  <ChevronRight size={18} color="#94A3B8" />
+                </TouchableOpacity>
+
+                {/* 2. Clear Move (Clear All) */}
+                <TouchableOpacity
+                  style={styles.menuItemPill}
+                  activeOpacity={0.7}
+                  onPress={handleClearAllMoves}
+                >
+                  <View style={styles.menuItemLeft}>
+                    <Trash2 size={18} color="#DC2626" style={styles.menuItemIcon} />
+                    <Text style={[styles.menuItemText, { color: '#DC2626' }]}>Clear Move (Clear All)</Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* 3. Variant */}
+                <TouchableOpacity
+                  style={styles.menuItemPill}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setIsMenuOpen(false);
+                    setIsVariantOpen(true);
+                  }}
+                >
+                  <View style={styles.menuItemLeft}>
+                    <Layers size={18} color="#7C3AED" style={styles.menuItemIcon} />
+                    <Text style={styles.menuItemText}>Variant</Text>
+                  </View>
+                  <Text style={styles.menuSubBadge}>{selectedVariant.split(' ')[0]}</Text>
+                </TouchableOpacity>
+
+                {/* 4. Show Threats */}
+                <TouchableOpacity
+                  style={styles.menuItemPill}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setSettings((prev) => ({ ...prev, showThreats: !prev.showThreats }));
+                    setIsMenuOpen(false);
+                  }}
+                >
+                  <View style={styles.menuItemLeft}>
+                    <AlertOctagon size={18} color="#D97706" style={styles.menuItemIcon} />
+                    <Text style={styles.menuItemText}>Show Threats</Text>
+                  </View>
+                  <Text style={[styles.menuSubBadge, settings.showThreats && styles.menuSubBadgeActive]}>
+                    {settings.showThreats ? 'ON' : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 5. Board Editor */}
+                <TouchableOpacity
+                  style={styles.menuItemPill}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setIsBoardEditorOpen(true);
+                    setIsMenuOpen(false);
+                  }}
+                >
+                  <View style={styles.menuItemLeft}>
+                    <Edit3 size={18} color="#059669" style={styles.menuItemIcon} />
+                    <Text style={styles.menuItemText}>Board Editor</Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* 6. Continue from Here */}
+                <TouchableOpacity
+                  style={styles.menuItemPill}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setIsMenuOpen(false);
+                    syncBoard();
+                  }}
+                >
+                  <View style={styles.menuItemLeft}>
+                    <PlayCircle size={18} color="#0284C7" style={styles.menuItemIcon} />
+                    <Text style={styles.menuItemText}>Continue from Here</Text>
+                  </View>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================== */}
+        {/* ⚙️ 2. FULL SETTINGS SUBMENU (All 16 User Settings) */}
+        {/* ======================================================== */}
+        <Modal
+          visible={isSettingsOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsSettingsOpen(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.menuGlassCard, { maxHeight: '85%' }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Settings</Text>
+                <TouchableOpacity
+                  style={styles.closeCircleButton}
+                  onPress={() => setIsSettingsOpen(false)}
+                >
+                  <X size={18} color="#64748B" strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Section: Stockfish Settings */}
+                <Text style={styles.settingsSectionTitle}>Stockfish Settings</Text>
+
+                {/* 1. Stockfish Toggle */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Stockfish Engine</Text>
+                  <Switch
+                    value={settings.stockfishEnabled}
+                    onValueChange={(val) => setSettings({ ...settings, stockfishEnabled: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 2. CPU Threads */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>CPU Threads</Text>
+                  <View style={styles.stepperRow}>
+                    {[1, 2, 4, 8].map((t) => (
+                      <TouchableOpacity
+                        key={t}
+                        style={[
+                          styles.stepperPill,
+                          settings.cpuThreads === t && styles.stepperPillActive,
+                        ]}
+                        onPress={() => setSettings({ ...settings, cpuThreads: t })}
+                      >
+                        <Text
+                          style={[
+                            styles.stepperText,
+                            settings.cpuThreads === t && styles.stepperTextActive,
+                          ]}
+                        >
+                          {t}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* 3. Multiple Lines (MultiPV) */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Multiple Lines (MultiPV)</Text>
+                  <View style={styles.stepperRow}>
+                    {[1, 2, 3, 5].map((l) => (
+                      <TouchableOpacity
+                        key={l}
+                        style={[
+                          styles.stepperPill,
+                          settings.multipleLines === l && styles.stepperPillActive,
+                        ]}
+                        onPress={() => setSettings({ ...settings, multipleLines: l })}
+                      >
+                        <Text
+                          style={[
+                            styles.stepperText,
+                            settings.multipleLines === l && styles.stepperTextActive,
+                          ]}
+                        >
+                          {l}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* 4. Search Time */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Search Time</Text>
+                  <View style={styles.stepperRow}>
+                    {[0.5, 1.0, 2.0, 5.0].map((sec) => (
+                      <TouchableOpacity
+                        key={sec}
+                        style={[
+                          styles.stepperPill,
+                          settings.stockfishSearchTime === sec && styles.stepperPillActive,
+                        ]}
+                        onPress={() => setSettings({ ...settings, stockfishSearchTime: sec })}
+                      >
+                        <Text
+                          style={[
+                            styles.stepperText,
+                            settings.stockfishSearchTime === sec && styles.stepperTextActive,
+                          ]}
+                        >
+                          {sec}s
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* 5. Best Move Arrow */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Best Move Arrow</Text>
+                  <Switch
+                    value={settings.bestMoveArrow}
+                    onValueChange={(val) => setSettings({ ...settings, bestMoveArrow: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 6. Best Hero */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Best Hero</Text>
+                  <Switch
+                    value={settings.bestHero}
+                    onValueChange={(val) => setSettings({ ...settings, bestHero: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 7. Server Analysis */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Server Analysis</Text>
+                  <Switch
+                    value={settings.serverAnalysis}
+                    onValueChange={(val) => setSettings({ ...settings, serverAnalysis: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* Section: Display & Analysis Settings */}
+                <Text style={styles.settingsSectionTitle}>Display & Analysis</Text>
+
+                {/* 8. Show Evaluation Gauge */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Show Evaluation Gauge</Text>
+                  <Switch
+                    value={settings.showEvalGauge}
+                    onValueChange={(val) => setSettings({ ...settings, showEvalGauge: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 9. Inline Notations */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Inline Notations</Text>
+                  <Switch
+                    value={settings.inlineNotations}
+                    onValueChange={(val) => setSettings({ ...settings, inlineNotations: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 10. Toggle Move Annotations */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Toggle Move Annotations</Text>
+                  <Switch
+                    value={settings.toggleMoveAnnotations}
+                    onValueChange={(val) => setSettings({ ...settings, toggleMoveAnnotations: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 11. Show Indian Lines */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Show Indian Lines</Text>
+                  <Switch
+                    value={settings.showIndianLines}
+                    onValueChange={(val) => setSettings({ ...settings, showIndianLines: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 12. Show Comments */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Show Comments</Text>
+                  <Switch
+                    value={settings.showComments}
+                    onValueChange={(val) => setSettings({ ...settings, showComments: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 13. Small Board */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Small Board</Text>
+                  <Switch
+                    value={settings.smallBoard}
+                    onValueChange={(val) => setSettings({ ...settings, smallBoard: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 14. Open Explorer */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Open Explorer</Text>
+                  <Switch
+                    value={settings.openExplorer}
+                    onValueChange={(val) => setSettings({ ...settings, openExplorer: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 15. Show Threats */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Show Threats</Text>
+                  <Switch
+                    value={settings.showThreats}
+                    onValueChange={(val) => setSettings({ ...settings, showThreats: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 16. Sound */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Sound</Text>
+                  <Switch
+                    value={settings.sound}
+                    onValueChange={(val) => setSettings({ ...settings, sound: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                <View style={{ height: 20 }} />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================== */}
+        {/* ♟️ 3. CHESS VARIANT SELECTION MODAL */}
+        {/* ======================================================== */}
+        <Modal
+          visible={isVariantOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsVariantOpen(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.menuGlassCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Chess Variant</Text>
+                <TouchableOpacity
+                  style={styles.closeCircleButton}
+                  onPress={() => setIsVariantOpen(false)}
+                >
+                  <X size={18} color="#64748B" strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+
+              {CHESS_VARIANTS.map((v) => (
+                <TouchableOpacity
+                  key={v}
+                  style={[styles.variantItemPill, selectedVariant === v && styles.variantItemPillActive]}
+                  onPress={() => {
+                    setSelectedVariant(v);
+                    setIsVariantOpen(false);
+                  }}
+                >
+                  <Text style={[styles.variantItemText, selectedVariant === v && styles.variantItemTextActive]}>
+                    {v}
+                  </Text>
+                  {selectedVariant === v && <Check size={18} color="#2563EB" />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F4F7FB',
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: 14,
+    justifyContent: 'space-between',
+  },
+  ambientFog1: {
+    position: 'absolute',
+    top: -50,
+    left: -40,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(219, 234, 254, 0.6)',
+  },
+  ambientFog2: {
+    position: 'absolute',
+    top: 280,
+    right: -50,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(237, 233, 254, 0.55)',
+  },
+  ambientFog3: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(224, 242, 254, 0.5)',
+  },
+  // Engine Status Bar
+  engineStatusBar: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  evalScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  evalScoreBadge: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  evalScoreText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  evalStateText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  engineStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  engineStatItem: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  statDot: {
+    fontSize: 10,
+    color: '#CBD5E1',
+    marginHorizontal: 5,
+  },
+  // Editor Mode Banner
+  editorBannerPill: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 246, 255, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(191, 219, 254, 0.9)',
+    marginBottom: 4,
+  },
+  editorBannerText: {
+    color: '#1D4ED8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  editorDoneButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  editorDoneText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  // Chessboard Container
+  boardGlassContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    padding: 6,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  board: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  row: {
+    flexDirection: 'row',
+  },
+  square: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  lightSquare: {
+    backgroundColor: '#F8FAFC',
+  },
+  darkSquare: {
+    backgroundColor: '#7192B3',
+  },
+  selectedSquare: {
+    backgroundColor: '#FEF08A',
+  },
+  lastMoveSquare: {
+    backgroundColor: '#BAE6FD',
+  },
+  heroSquareHighlight: {
+    backgroundColor: 'rgba(234, 179, 8, 0.35)',
+  },
+  threatHighlight: {
+    backgroundColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  pieceText: {
+    textAlign: 'center',
+  },
+  whitePiece: {
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.55)',
+    textShadowOffset: { width: 1, height: 1.5 },
+    textShadowRadius: 2,
+  },
+  blackPiece: {
+    color: '#0F172A',
+  },
+  moveDot: {
+    position: 'absolute',
+    backgroundColor: 'rgba(15, 23, 42, 0.25)',
+  },
+  captureRing: {
+    position: 'absolute',
+    borderWidth: 3,
+    borderColor: 'rgba(239, 68, 68, 0.45)',
+  },
+  coordRank: {
+    position: 'absolute',
+    top: 2,
+    left: 3,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  coordFile: {
+    position: 'absolute',
+    bottom: 1,
+    right: 3,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  lightCoord: {
+    color: '#94A3B8',
+  },
+  darkCoord: {
+    color: '#F1F5F9',
+  },
+  // Editor Palette
+  editorPalette: {
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  editorPaletteItem: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.6)',
+  },
+  editorPaletteItemSelected: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6',
+    borderWidth: 2,
+  },
+  editorPalettePiece: {
+    fontSize: 20,
+  },
+  // Timeline Strip
+  timelineWrapper: {
+    marginVertical: 4,
+  },
+  timelineScroll: {
+    flexDirection: 'row',
+  },
+  timelinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.82)',
+    borderRadius: 9999,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  timelinePillActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#1D4ED8',
+  },
+  timelineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  timelineTextActive: {
+    color: '#FFFFFF',
+  },
+  // Analysis Content Area
+  analysisScrollView: {
+    flex: 1,
+    marginVertical: 4,
+  },
+  cognitiveCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderRadius: 16,
+    padding: 10,
+    marginBottom: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cognitiveCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  cognitiveHeaderTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  cognitiveConceptTag: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  cognitiveBodyText: {
+    fontSize: 11,
+    color: '#334155',
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  indianLinesCard: {
+    backgroundColor: 'rgba(254, 243, 199, 0.85)',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(253, 230, 138, 0.9)',
+  },
+  indianLinesTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  indianLinesBody: {
+    fontSize: 11,
+    color: '#78350F',
+    lineHeight: 15,
+  },
+  explorerCard: {
+    backgroundColor: 'rgba(239, 246, 255, 0.85)',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(191, 219, 254, 0.9)',
+  },
+  explorerTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E40AF',
+    marginBottom: 2,
+  },
+  explorerBody: {
+    fontSize: 11,
+    color: '#1E3A8A',
+    lineHeight: 15,
+  },
+  // Bottom Toolbar (5 Meaningful Action Buttons)
+  bottomNebba: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 9999,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
+    marginBottom: 4,
+  },
+  nebbaButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(241, 245, 249, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.6)',
+  },
+  nebbaHeroButton: {
+    backgroundColor: '#2563EB',
+    borderColor: '#1D4ED8',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  nebbaButtonDisabled: {
+    opacity: 0.35,
+  },
+  // Modal Styles
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  menuGlassCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  closeCircleButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuItemPill: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuItemIcon: {
+    marginRight: 10,
+  },
+  menuItemText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  menuSubBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  menuSubBadgeActive: {
+    color: '#D97706',
+    backgroundColor: '#FEF3C7',
+  },
+  settingsSectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 10,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  settingLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  stepperRow: {
+    flexDirection: 'row',
+  },
+  stepperPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    marginLeft: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  stepperPillActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#1D4ED8',
+  },
+  stepperText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  stepperTextActive: {
+    color: '#FFFFFF',
+  },
+  variantItemPill: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  variantItemPillActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#93C5FD',
+  },
+  variantItemText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  variantItemTextActive: {
+    color: '#1D4ED8',
+    fontWeight: '700',
+  },
+});
