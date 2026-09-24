@@ -84,9 +84,15 @@ const CHESS_VARIANTS = [
 ];
 
 // Coordinate helper for arrow rendering
-function getSquareCenter(sq: string, isWhiteOrientation: boolean, squareSize: number) {
+function getSquareCenter(sq: string | null | undefined, isWhiteOrientation: boolean, squareSize: number) {
+  if (!sq || typeof sq !== 'string' || sq.length < 2) {
+    return { x: 0, y: 0 };
+  }
   const file = sq.charCodeAt(0) - 'a'.charCodeAt(0);
   const rank = parseInt(sq[1], 10) - 1;
+  if (isNaN(file) || isNaN(rank) || file < 0 || file > 7 || rank < 0 || rank > 7) {
+    return { x: 0, y: 0 };
+  }
   const col = isWhiteOrientation ? file : 7 - file;
   const row = isWhiteOrientation ? 7 - rank : rank;
   return {
@@ -364,11 +370,13 @@ export default function App() {
     if (!settings.bestMoveArrow) return null;
 
     if (evaluation.topMoves && evaluation.topMoves.length > 0) {
-      return evaluation.topMoves.map((m) => ({
-        from: getSquareCenter(m.from, isWhiteOrientation, squareSize),
-        to: getSquareCenter(m.to, isWhiteOrientation, squareSize),
-        rank: m.rank,
-      }));
+      return evaluation.topMoves
+        .filter((m) => m && m.from && m.to && m.from.length >= 2 && m.to.length >= 2)
+        .map((m) => ({
+          from: getSquareCenter(m.from, isWhiteOrientation, squareSize),
+          to: getSquareCenter(m.to, isWhiteOrientation, squareSize),
+          rank: m.rank,
+        }));
     }
 
     if (evaluation.bestMove && evaluation.bestMove.length >= 4) {

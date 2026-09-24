@@ -45,9 +45,15 @@ const BOARD_THEME_COLORS: Record<BoardTheme, { light: string; dark: string }> = 
   'Charcoal Dark': { light: '#E2E8F0', dark: '#334155' },
 };
 
-function getSquareCoords(sq: string, isWhiteOrientation: boolean, squareSize: number) {
+function getSquareCoords(sq: string | null | undefined, isWhiteOrientation: boolean, squareSize: number) {
+  if (!sq || typeof sq !== 'string' || sq.length < 2) {
+    return { x: 0, y: 0 };
+  }
   const file = sq.charCodeAt(0) - 97; // 'a' -> 0
   const rank = parseInt(sq[1], 10) - 1;
+  if (isNaN(file) || isNaN(rank) || file < 0 || file > 7 || rank < 0 || rank > 7) {
+    return { x: 0, y: 0 };
+  }
   const col = isWhiteOrientation ? file : 7 - file;
   const row = isWhiteOrientation ? 7 - rank : rank;
   return {
