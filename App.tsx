@@ -12,7 +12,9 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Chess, Square, Move } from 'chess.js';
+import { ChessBoardView } from './components/ChessBoardView';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import {
   Menu,
@@ -283,6 +285,33 @@ export default function App() {
     }
   };
 
+  // Handle Drag and Drop move from Reanimated native thread gesture
+  const handleDropMove = useCallback((from: Square, to: Square) => {
+    try {
+      const move = chess.move({
+        from,
+        to,
+        promotion: 'q',
+      });
+
+      if (move) {
+        const updatedHistory = historyMoves.slice(0, currentMoveIndex + 1);
+        updatedHistory.push(move);
+        setHistoryMoves(updatedHistory);
+        setCurrentMoveIndex(updatedHistory.length - 1);
+
+        setLastMove({ from: move.from, to: move.to });
+        setSelectedSquare(null);
+        setPossibleMoves([]);
+        syncBoard();
+      }
+    } catch {
+      // Invalid drop move, reset selection cleanly
+      setSelectedSquare(null);
+      setPossibleMoves([]);
+    }
+  }, [chess, historyMoves, currentMoveIndex, syncBoard]);
+
   const currentMove = currentMoveIndex >= 0 ? historyMoves[currentMoveIndex] : null;
 
   // Evaluation & Assessment
@@ -374,8 +403,9 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F4F7FB" />
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" backgroundColor="#F4F7FB" />
         
         {/* Ambient Fog Layers */}
         <View style={styles.ambientFog1} />
@@ -547,117 +577,28 @@ export default function App() {
                 </View>
               )}
 
-              {/* 2. Interactive Chessboard */}
-              <View style={styles.boardGlassContainer}>
-                <View style={[styles.board, { width: boardSize, height: boardSize }]}>
-                  {ranks.map((rank, rIdx) => (
-                    <View key={rank} style={[styles.row, { height: squareSize }]}>
-                      {files.map((file, fIdx) => {
-                        const squareName = `${file}${rank}` as Square;
-                        const piece = chess.get(squareName);
-                        const isLight = (rIdx + fIdx) % 2 === 0;
-                        const isSelected = selectedSquare === squareName;
-                        const isTarget = possibleMoves.includes(squareName);
-                        const isLastMoveSquare =
-                          lastMove?.from === squareName || lastMove?.to === squareName;
-                        
-                        const engineTargetSq = evaluation.bestMove && evaluation.bestMove.length >= 4 
-                          ? evaluation.bestMove.substring(2, 4) 
-                          : null;
-                        const isHeroSquare =
-                          settings.bestHero && (engineTargetSq ? engineTargetSq === squareName : lastMove?.to === squareName);
-                        const isThreatSquare =
-                          settings.showThreats && piece && piece.color !== chess.turn();
-
-                        const pieceKey = piece ? `${piece.color}_${piece.type}` : null;
-                        const pieceSymbol = pieceKey ? PIECE_SYMBOLS[pieceKey] : '';
-
-                        return (
-                          <TouchableOpacity
-                            key={squareName}
-                            activeOpacity={0.85}
-                            onPress={() => handleSquarePress(squareName)}
-                            style={[
-                              styles.square,
-                              { width: squareSize, height: squareSize },
-                              isLight ? styles.lightSquare : styles.darkSquare,
-                              isSelected && styles.selectedSquare,
-                              isLastMoveSquare && styles.lastMoveSquare,
-                              isHeroSquare && styles.heroSquareHighlight,
-                              isThreatSquare && styles.threatHighlight,
-                            ]}
-                          >
-                            {/* Square Coordinates */}
-                            {fIdx === 0 && (
-                              <Text style={[styles.coordRank, isLight ? styles.darkCoord : styles.lightCoord]}>
-                                {rank}
-                              </Text>
-                            )}
-                            {rIdx === 7 && (
-                              <Text style={[styles.coordFile, isLight ? styles.darkCoord : styles.lightCoord]}>
-                                {file}
-                              </Text>
-                            )}
-
-                            {/* Move Targets */}
-                            {isTarget && (
-                              <View
-                                style={[
-                                  piece ? styles.captureRing : styles.moveDot,
-                                  {
-                                    width: squareSize * (piece ? 0.85 : 0.28),
-                                    height: squareSize * (piece ? 0.85 : 0.28),
-                                    borderRadius: (squareSize * (piece ? 0.85 : 0.28)) / 2,
-                                  },
-                                ]}
-                              />
-                            )}
-
-                            {/* Piece Icon */}
-                            {piece && (
-                              <Text
-                                style={[
-                                  styles.pieceText,
-                                  { fontSize: squareSize * 0.74, lineHeight: squareSize * 0.8 },
-                                  piece.color === 'w' ? styles.whitePiece : styles.blackPiece,
-                                ]}
-                              >
-                                {pieceSymbol}
-                              </Text>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ))}
-
-                  {/* Best Move Arrow */}
-                  {arrowPoints && (
-                    <Svg
-                      height={boardSize}
-                      width={boardSize}
-                      style={StyleSheet.absoluteFill}
-                      pointerEvents="none"
-                    >
-                      <Line
-                        x1={arrowPoints.from.x}
-                        y1={arrowPoints.from.y}
-                        x2={arrowPoints.to.x}
-                        y2={arrowPoints.to.y}
-                        stroke="rgba(37, 99, 235, 0.65)"
-                        strokeWidth={4}
-                        strokeLinecap="round"
-                      />
-                      <SvgCircle
-                        cx={arrowPoints.to.x}
-                        cy={arrowPoints.to.y}
-                        r={5.5}
-                        fill="rgba(37, 99, 235, 0.9)"
-                      />
-                    </Svg>
-                  )}
-                </View>
-              </View>
+              {/* 2. Interactive Chessboard with Reanimated 60 FPS Native Gestures */}
+              <ChessBoardView
+                chess={chess}
+                boardSize={boardSize}
+                isWhiteOrientation={isWhiteOrientation}
+                selectedSquare={selectedSquare}
+                possibleMoves={possibleMoves}
+                lastMove={lastMove}
+                bestMoveArrow={arrowPoints}
+                heroSquare={
+                  settings.bestHero
+                    ? ((evaluation.bestMove && evaluation.bestMove.length >= 4
+                        ? evaluation.bestMove.substring(2, 4)
+                        : lastMove?.to) as Square | null)
+                    : null
+                }
+                threatsEnabled={settings.showThreats}
+                coordinatesEnabled={settings.inlineNotations}
+                onSquarePress={handleSquarePress}
+                onDropMove={handleDropMove}
+                isEditorActive={isBoardEditorOpen}
+              />
 
               {/* Board Editor Piece Palette */}
               {isBoardEditorOpen && (
@@ -1323,6 +1264,7 @@ export default function App() {
           </View>
         </Modal>
       </SafeAreaView>
+      </GestureHandlerRootView>
     </SafeAreaProvider>
   );
 }
