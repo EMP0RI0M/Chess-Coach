@@ -329,13 +329,27 @@ export default function App() {
     };
   }, [currentMove, settings.toggleMoveAnnotations]);
 
-  // Arrow calculations bound to settings.bestMoveArrow
+  // Arrow calculations bound to settings.bestMoveArrow and Stockfish bestMove
   const arrowPoints = useMemo(() => {
-    if (!settings.bestMoveArrow || !lastMove) return null;
-    const from = getSquareCenter(lastMove.from, isWhiteOrientation, squareSize);
-    const to = getSquareCenter(lastMove.to, isWhiteOrientation, squareSize);
-    return { from, to };
-  }, [lastMove, isWhiteOrientation, settings.bestMoveArrow, squareSize]);
+    if (!settings.bestMoveArrow) return null;
+    
+    // Prefer Stockfish engine's calculated best move e.g. "e2e4" -> from "e2", to "e4"
+    if (evaluation.bestMove && evaluation.bestMove.length >= 4) {
+      const fromSq = evaluation.bestMove.substring(0, 2);
+      const toSq = evaluation.bestMove.substring(2, 4);
+      const from = getSquareCenter(fromSq, isWhiteOrientation, squareSize);
+      const to = getSquareCenter(toSq, isWhiteOrientation, squareSize);
+      return { from, to, isEngine: true };
+    }
+
+    if (lastMove) {
+      const from = getSquareCenter(lastMove.from, isWhiteOrientation, squareSize);
+      const to = getSquareCenter(lastMove.to, isWhiteOrientation, squareSize);
+      return { from, to, isEngine: false };
+    }
+
+    return null;
+  }, [evaluation.bestMove, lastMove, isWhiteOrientation, settings.bestMoveArrow, squareSize]);
 
   const ranks = isWhiteOrientation ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
   const files = isWhiteOrientation ? ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] : ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'];
@@ -400,8 +414,12 @@ export default function App() {
                     const isTarget = possibleMoves.includes(squareName);
                     const isLastMoveSquare =
                       lastMove?.from === squareName || lastMove?.to === squareName;
+                    
+                    const engineTargetSq = evaluation.bestMove && evaluation.bestMove.length >= 4 
+                      ? evaluation.bestMove.substring(2, 4) 
+                      : null;
                     const isHeroSquare =
-                      settings.bestHero && lastMove?.to === squareName;
+                      settings.bestHero && (engineTargetSq ? engineTargetSq === squareName : lastMove?.to === squareName);
                     const isThreatSquare =
                       settings.showThreats && piece && piece.color !== chess.turn();
 
