@@ -1,5 +1,17 @@
 import { Chess, Move } from 'chess.js';
 
+export type TacticalMotif = 'Pin' | 'Fork' | 'Overloaded_Defender' | 'Space_Clamp' | 'King_Exposure' | 'Discovered_Attack' | 'Back_Rank_Mate' | 'Demolition';
+
+export interface JevVisualImprint {
+  tacticalMotif: TacticalMotif;
+  criticalSquare: string; // e.g. "f7", "e4", "d5"
+  confidenceScore: number; // 0.0 to 1.0
+  flashWord: string; // e.g. "DEMOLITION", "PIN", "VECTOR CLAMP"
+  threatSeverity: number; // 1 to 10
+  vectorClampLine?: { from: string; to: string } | null;
+  latencyMs: number;
+}
+
 export interface SystemOneDecision {
   policyMove: string | null;
   confidence: number; // 0.0 to 1.0
@@ -7,22 +19,26 @@ export interface SystemOneDecision {
   isObviousMove: boolean;
   tacticalPruningOrder: string[]; // Ordered list of top candidate moves
   cognitiveInsight: string;
+  imprint: JevVisualImprint;
 }
 
 export class JevCognitiveFilter {
-  private isOnline = false;
-
-  constructor() {
-    // Initialized
-  }
-
   /**
-   * Fast Non-Autoregressive "System One" Policy Filter
-   * Evaluates the chess state instantaneously (<5ms) to predict move probabilities,
-   * prune unpromising tree branches, and dynamically assign calculation budgets.
+   * Fast Non-Autoregressive "System One" Neuro-Imprinting & Policy Filter
+   * Outputs structured decision primitives, visual anchor squares, and flash motifs in <5ms.
    */
   public filterPosition(fen: string, legalMoves: Move[]): SystemOneDecision {
+    const t0 = Date.now();
+
     if (legalMoves.length === 0) {
+      const imprint: JevVisualImprint = {
+        tacticalMotif: 'King_Exposure',
+        criticalSquare: 'e1',
+        confidenceScore: 1.0,
+        flashWord: 'TERMINAL',
+        threatSeverity: 10,
+        latencyMs: Date.now() - t0,
+      };
       return {
         policyMove: null,
         confidence: 1.0,
@@ -30,23 +46,75 @@ export class JevCognitiveFilter {
         isObviousMove: false,
         tacticalPruningOrder: [],
         cognitiveInsight: 'Game Over / Terminal state.',
+        imprint,
       };
     }
 
-    // 1. Check for single forced move (e.g. escaping check or single recapture)
+    // 1. Analyze critical squares (f7/f2 king exposure, central clamps, back ranks)
+    let detectedMotif: TacticalMotif = 'Space_Clamp';
+    let criticalSquare = 'e4';
+    let flashWord = 'POSITIONAL';
+    let threatSeverity = 3;
+    let vectorClampLine: { from: string; to: string } | null = null;
+
+    for (const m of legalMoves) {
+      // King Exposure / Demolition on f7 / f2
+      if (['f7', 'f2'].includes(m.to) && (m.captured || m.san.includes('+'))) {
+        detectedMotif = 'Demolition';
+        criticalSquare = m.to;
+        flashWord = 'DEMOLITION';
+        threatSeverity = 9;
+        break;
+      }
+      // Tactical Fork / Check
+      if (m.san.includes('+')) {
+        detectedMotif = 'King_Exposure';
+        criticalSquare = m.to;
+        flashWord = 'CHECK TENSION';
+        threatSeverity = 8;
+        break;
+      }
+      // Forks (Knights targeting multiple pieces)
+      if (m.piece === 'n' && ['c7', 'f7', 'e6', 'd5'].includes(m.to)) {
+        detectedMotif = 'Fork';
+        criticalSquare = m.to;
+        flashWord = 'TACTICAL FORK';
+        threatSeverity = 8;
+        break;
+      }
+      // Pins / Skewers (Bishops/Rooks along diagonals/files)
+      if (['b', 'r', 'q'].includes(m.piece) && m.san.includes('x')) {
+        detectedMotif = 'Pin';
+        criticalSquare = m.to;
+        flashWord = 'PIN VECTOR';
+        threatSeverity = 7;
+        vectorClampLine = { from: m.from, to: m.to };
+      }
+    }
+
+    // 2. Check for single forced move (e.g. escaping check or single recapture)
     if (legalMoves.length === 1) {
       const singleMove = legalMoves[0];
+      const imprint: JevVisualImprint = {
+        tacticalMotif: detectedMotif,
+        criticalSquare: singleMove.to,
+        confidenceScore: 0.99,
+        flashWord: 'FORCED REPLY',
+        threatSeverity,
+        latencyMs: Date.now() - t0,
+      };
       return {
         policyMove: `${singleMove.from}${singleMove.to}`,
         confidence: 0.99,
         recommendedDepth: 1, // Bypass deep calculation
         isObviousMove: true,
         tacticalPruningOrder: [`${singleMove.from}${singleMove.to}`],
-        cognitiveInsight: 'Forced reply. Bypassing engine calculation search.',
+        cognitiveInsight: 'Forced reply. Instant System-1 neuro-imprint.',
+        imprint,
       };
     }
 
-    // 2. Fast Policy Heuristic Scoring (MVV-LVA + Tactical checks)
+    // 3. Fast Policy Heuristic Scoring (MVV-LVA + Tactical checks)
     const scoredMoves = legalMoves.map((m) => {
       let score = 0;
       // Captures
@@ -92,9 +160,17 @@ export class JevCognitiveFilter {
     const confidence = isObvious ? 0.95 : Math.min(0.9, Math.max(0.3, scoreDiff / 500));
 
     // Dynamic Time & Depth Allocation:
-    // High confidence -> Fast low depth (2-3)
-    // Low confidence / Complex branched state -> Deep search depth (4-5)
     const recommendedDepth = isObvious ? 2 : (confidence < 0.5 ? 4 : 3);
+
+    const imprint: JevVisualImprint = {
+      tacticalMotif: detectedMotif,
+      criticalSquare: criticalSquare || bestCandidate.move.to,
+      confidenceScore: confidence,
+      flashWord: isObvious ? 'TACTICAL BLITZ' : flashWord,
+      threatSeverity,
+      vectorClampLine,
+      latencyMs: Date.now() - t0,
+    };
 
     return {
       policyMove: bestCandidate.lan,
@@ -103,8 +179,9 @@ export class JevCognitiveFilter {
       isObviousMove: isObvious,
       tacticalPruningOrder: scoredMoves.slice(0, 5).map((m) => m.lan),
       cognitiveInsight: isObvious
-        ? `Jev Confidence ${Math.round(confidence * 100)}%: High tactical priority detected.`
-        : `Jev Ambiguity: Complex position with multiple viable continuations. Expanding search depth.`,
+        ? `Jev Confidence ${Math.round(confidence * 100)}%: ${flashWord} on ${criticalSquare}.`
+        : `Jev Ambiguity: Complex position with multiple viable lines.`,
+      imprint,
     };
   }
 
