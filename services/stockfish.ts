@@ -24,7 +24,6 @@ export function useStockfishEngine() {
   const stockfishLoopRef = useRef<(() => void) | null>(null);
   const stopStockfishRef = useRef<(() => void) | null>(null);
   const sendCommandRef = useRef<((cmd: string) => void) | null>(null);
-  const pendingFenRef = useRef<string | null>(null);
 
   // Parse raw UCI output stream (e.g., "info depth 12 score cp 45 pv e2e4 e7e5")
   const parseUciOutput = useCallback((output: string) => {
@@ -68,19 +67,47 @@ export function useStockfishEngine() {
     }
   }, []);
 
-  // Initialize Native Engine if available
+  // Initialize Native Engine loop and subscribe to outputs on component mount
   useEffect(() => {
-    let unmounted = false;
+    let cancelOutputSub: (() => void) | null = null;
+    let cancelErrorSub: (() => void) | null = null;
+
     try {
       const stockfishLib = require('@loloof64/react-native-stockfish');
-      if (stockfishLib && stockfishLib.useStockfish) {
+      const NativeStockfish = stockfishLib.default || stockfishLib;
+
+      if (NativeStockfish && NativeStockfish.stockfishLoop) {
+        NativeStockfish.stockfishLoop();
+        stockfishLoopRef.current = NativeStockfish.stockfishLoop;
+        stopStockfishRef.current = NativeStockfish.stopStockfish;
+        sendCommandRef.current = NativeStockfish.sendCommandToStockfish;
         setEngineReady(true);
+
+        if (stockfishLib._subscribeToStockfishOutput) {
+          cancelOutputSub = stockfishLib._subscribeToStockfishOutput((output: string) => {
+            parseUciOutput(output);
+          });
+        }
+        if (stockfishLib._subscribeToStockfishError) {
+          cancelErrorSub = stockfishLib._subscribeToStockfishError((err: string) => {
+            console.warn('Stockfish native error:', err);
+          });
+        }
+
+        setTimeout(() => {
+          if (sendCommandRef.current) {
+            sendCommandRef.current('uci');
+            sendCommandRef.current('isready');
+          }
+        }, 300);
       }
-    } catch {
+    } catch (err) {
       setEngineReady(false);
     }
+
     return () => {
-      unmounted = true;
+      if (cancelOutputSub) cancelOutputSub();
+      if (cancelErrorSub) cancelErrorSub();
       if (stopStockfishRef.current) {
         try {
           stopStockfishRef.current();
@@ -89,22 +116,22 @@ export function useStockfishEngine() {
         }
       }
     };
-  }, []);
+  }, [parseUciOutput]);
 
   // Send FEN position to Stockfish for real evaluation
   const evaluatePosition = useCallback(
     (fen: string, depth = 15) => {
       setEvaluation((prev) => ({ ...prev, isCalculating: true }));
 
-      try {
-        const stockfishLib = require('@loloof64/react-native-stockfish');
-        if (stockfishLib && stockfishLib.default && stockfishLib.default.sendCommandToStockfish) {
-          stockfishLib.default.sendCommandToStockfish(`position fen ${fen}\n`);
-          stockfishLib.default.sendCommandToStockfish(`go depth ${depth}\n`);
+      if (sendCommandRef.current) {
+        try {
+          sendCommandRef.current('stop');
+          sendCommandRef.current(`position fen ${fen}`);
+          sendCommandRef.current(`go depth ${depth}`);
           return;
+        } catch (err) {
+          console.warn('Error sending command to Stockfish:', err);
         }
-      } catch {
-        // Fallback for preview
       }
 
       // Safe heuristic calculation for non-native environments
@@ -122,13 +149,12 @@ export function useStockfishEngine() {
   );
 
   const stopEvaluation = useCallback(() => {
-    try {
-      const stockfishLib = require('@loloof64/react-native-stockfish');
-      if (stockfishLib && stockfishLib.default && stockfishLib.default.sendCommandToStockfish) {
-        stockfishLib.default.sendCommandToStockfish('stop\n');
+    if (sendCommandRef.current) {
+      try {
+        sendCommandRef.current('stop');
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
     setEvaluation((prev) => ({ ...prev, isCalculating: false }));
   }, []);
