@@ -20,6 +20,7 @@ import { DAILY_PUZZLES, ChessPuzzle } from './src/engine/puzzleService';
 import { ChessBoardView } from './src/components/ChessBoardView';
 import { ChessgroundView } from './src/components/ChessgroundView';
 import { MultiplayerModal } from './src/components/MultiplayerModal';
+import { PgnFenManager } from './src/components/PgnFenManager';
 import { sensoryAudioEngine } from './src/engine/sensoryAnchoring';
 import { lichessApiService } from './src/engine/lichessApiService';
 import { getMaterialDifference } from './src/engine/capturedPieces';
@@ -1162,7 +1163,7 @@ export default function App() {
           )}
 
           {/* ======================================================== */}
-          {/* 📂 PGN MANAGER PAGE (currentScreen === 'pgn') */}
+          {/* 📂 PGN, FEN & PNG MANAGER PAGE (currentScreen === 'pgn') */}
           {/* ======================================================== */}
           {currentScreen === 'pgn' && (
             <View style={{ flex: 1 }}>
@@ -1174,18 +1175,16 @@ export default function App() {
                   <ArrowLeft size={18} color="#1E293B" strokeWidth={2.4} />
                   <Text style={styles.screenBackText}>Hub</Text>
                 </TouchableOpacity>
-                <Text style={styles.screenHeaderTitle}>PGN Manager</Text>
-                <View style={{ width: 32 }} />
+                <Text style={styles.screenHeaderTitle}>PGN, FEN & PNG Hub</Text>
+                <TouchableOpacity
+                  style={styles.screenHeaderAction}
+                  onPress={() => setCurrentScreen('analysis')}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#2563EB' }}>Board →</Text>
+                </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                <View style={styles.pgnCard}>
-                  <Text style={styles.pgnCardTitle}>📂 Current Game PGN</Text>
-                  <Text style={styles.pgnContentText}>
-                    {chess.pgn() || '[Event "Casual Game"]\n[Site "Chess Coach"]\n1. --'}
-                  </Text>
-                </View>
-              </ScrollView>
+              <PgnFenManager onNavigateToBoard={() => setCurrentScreen('analysis')} />
             </View>
           )}
         </View>
