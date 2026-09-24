@@ -132,6 +132,25 @@ export default function App() {
   const setSelectedEditorPiece = useChessStore((s) => s.setSelectedEditorPiece);
   const setCurrentPuzzleIdx = useChessStore((s) => s.setCurrentPuzzleIdx);
 
+  // Aliases for seamless JSX binding
+  const setCurrentScreen = setScreen;
+  const setIsMenuOpen = setMenuOpen;
+  const setIsSettingsOpen = setSettingsOpen;
+  const setIsVariantOpen = setVariantOpen;
+  const setIsBoardEditorOpen = setBoardEditorOpen;
+  const setSettings = (newSettingsOrFn: any) => {
+    if (typeof newSettingsOrFn === 'function') {
+      const updated = newSettingsOrFn(settings);
+      Object.keys(updated).forEach((k) => {
+        updateSetting(k as any, updated[k]);
+      });
+    } else {
+      Object.keys(newSettingsOrFn).forEach((k) => {
+        updateSetting(k as any, newSettingsOrFn[k]);
+      });
+    }
+  };
+
   const [engineActive] = useState(true);
 
   // Dynamic board sizing bound to settings.smallBoard
@@ -721,11 +740,8 @@ export default function App() {
                     <TouchableOpacity
                       style={styles.puzzleLoadButton}
                       onPress={() => {
-                        chess.load(DAILY_PUZZLES[currentPuzzleIdx].fen);
-                        setHistoryMoves([]);
-                        setCurrentMoveIndex(-1);
-                        syncBoard();
-                        setCurrentScreen('analysis');
+                        loadFen(DAILY_PUZZLES[currentPuzzleIdx].fen);
+                        setScreen('analysis');
                       }}
                     >
                       <Text style={styles.puzzleLoadButtonText}>Load onto Board</Text>
@@ -846,7 +862,7 @@ export default function App() {
                   style={styles.menuItemPill}
                   activeOpacity={0.7}
                   onPress={() => {
-                    setSettings((prev) => ({ ...prev, showThreats: !prev.showThreats }));
+                    updateSetting('showThreats', !settings.showThreats);
                     setIsMenuOpen(false);
                   }}
                 >
@@ -880,7 +896,6 @@ export default function App() {
                   activeOpacity={0.7}
                   onPress={() => {
                     setIsMenuOpen(false);
-                    syncBoard();
                   }}
                 >
                   <View style={styles.menuItemLeft}>
