@@ -22,6 +22,7 @@ import { ChessgroundView } from './src/components/ChessgroundView';
 import { MultiplayerModal } from './src/components/MultiplayerModal';
 import { sensoryAudioEngine } from './src/engine/sensoryAnchoring';
 import { lichessApiService } from './src/engine/lichessApiService';
+import { getMaterialDifference } from './src/engine/capturedPieces';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import {
   Menu,
@@ -76,6 +77,24 @@ const PIECE_SYMBOLS: Record<string, string> = {
   b_k: '♚',
 };
 
+const UNICODE_PIECES_WHITE: Record<string, string> = {
+  p: '♙',
+  n: '♘',
+  b: '♗',
+  r: '♖',
+  q: '♕',
+  k: '♔',
+};
+
+const UNICODE_PIECES_BLACK: Record<string, string> = {
+  p: '♟',
+  n: '♞',
+  b: '♝',
+  r: '♜',
+  q: '♛',
+  k: '♚',
+};
+
 // Available Chess Variants
 const CHESS_VARIANTS = [
   'Standard Chess',
@@ -125,6 +144,7 @@ export default function App() {
   const settings = useChessStore((s) => s.settings);
 
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
+  const [analysisTab, setAnalysisTab] = useState<'compass' | 'moves'>('compass');
 
   // Zustand Store Actions
   const setScreen = useChessStore((s) => s.setScreen);
@@ -323,6 +343,31 @@ export default function App() {
 
     return { evalText, stateText, stateColor };
   }, [evaluation]);
+
+  // Real-time Material Balance & Captured Pieces (Above/Below Board)
+  const materialCount = useMemo(() => {
+    return getMaterialDifference(chess);
+  }, [fen, chess]);
+
+  // Two-column Move List Pairings (White | Black)
+  const movePairs = useMemo(() => {
+    const pairs: {
+      white: Move | null;
+      whiteIndex: number;
+      black: Move | null;
+      blackIndex: number | null;
+    }[] = [];
+
+    for (let i = 0; i < historyMoves.length; i += 2) {
+      pairs.push({
+        white: historyMoves[i],
+        whiteIndex: i,
+        black: i + 1 < historyMoves.length ? historyMoves[i + 1] : null,
+        blackIndex: i + 1 < historyMoves.length ? i + 1 : null,
+      });
+    }
+    return pairs;
+  }, [historyMoves]);
 
   // Cognitive Explanation (Bound to settings.showComments & toggleMoveAnnotations & JEV System-1 Invariant Extraction)
   const cognitiveInsight = useMemo(() => {
@@ -666,7 +711,43 @@ export default function App() {
                 </View>
               )}
 
-              {/* 2. Interactive Chessboard (Reanimated 120 FPS Native or Official Lichess Chessground) */}
+              {/* 2. Top Player Bar (Opponent) with Captured Pieces & Advantage */}
+              <View style={styles.playerInfoBar}>
+                <View style={styles.playerInfoLeft}>
+                  <View style={styles.playerAvatar}>
+                    <Text style={styles.playerAvatarText}>
+                      {isWhiteOrientation ? '⚫' : '⚪'}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={styles.playerTitle}>
+                      {isWhiteOrientation ? 'Stockfish 18 / Opponent' : (lichessUser?.username || 'EMP0RIUM (You)')}
+                    </Text>
+                    <View style={styles.capturedRow}>
+                      {(isWhiteOrientation ? materialCount.blackCaptured : materialCount.whiteCaptured).map((p, idx) => (
+                        <Text key={idx} style={styles.capturedPieceText}>
+                          {isWhiteOrientation ? UNICODE_PIECES_WHITE[p] : UNICODE_PIECES_BLACK[p]}
+                        </Text>
+                      ))}
+                      {/* Opponent Material Advantage */}
+                      {((isWhiteOrientation && materialCount.advantage < 0) || (!isWhiteOrientation && materialCount.advantage > 0)) && (
+                        <View style={styles.advantageBadge}>
+                          <Text style={styles.advantageBadgeText}>
+                            +{Math.abs(materialCount.advantage)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+                {chess.turn() === (isWhiteOrientation ? 'b' : 'w') && (
+                  <View style={styles.turnIndicator}>
+                    <Text style={styles.turnIndicatorText}>Turn</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* 3. Interactive Chessboard (Reanimated 120 FPS Native or Official Lichess Chessground) */}
               {settings.useChessground ? (
                 <ChessgroundView
                   fen={fen}
@@ -706,6 +787,42 @@ export default function App() {
                 />
               )}
 
+              {/* 4. Bottom Player Bar (Self) with Captured Pieces & Advantage */}
+              <View style={styles.playerInfoBar}>
+                <View style={styles.playerInfoLeft}>
+                  <View style={styles.playerAvatar}>
+                    <Text style={styles.playerAvatarText}>
+                      {isWhiteOrientation ? '⚪' : '⚫'}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={styles.playerTitle}>
+                      {isWhiteOrientation ? (lichessUser?.username || 'EMP0RIUM (You)') : 'Stockfish 18 / Opponent'}
+                    </Text>
+                    <View style={styles.capturedRow}>
+                      {(isWhiteOrientation ? materialCount.whiteCaptured : materialCount.blackCaptured).map((p, idx) => (
+                        <Text key={idx} style={styles.capturedPieceText}>
+                          {isWhiteOrientation ? UNICODE_PIECES_BLACK[p] : UNICODE_PIECES_WHITE[p]}
+                        </Text>
+                      ))}
+                      {/* Player Material Advantage */}
+                      {((isWhiteOrientation && materialCount.advantage > 0) || (!isWhiteOrientation && materialCount.advantage < 0)) && (
+                        <View style={styles.advantageBadge}>
+                          <Text style={styles.advantageBadgeText}>
+                            +{Math.abs(materialCount.advantage)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+                {chess.turn() === (isWhiteOrientation ? 'w' : 'b') && (
+                  <View style={[styles.turnIndicator, styles.turnIndicatorActive]}>
+                    <Text style={styles.turnIndicatorTextActive}>Your Turn</Text>
+                  </View>
+                )}
+              </View>
+
               {/* Board Editor Piece Palette */}
               {isBoardEditorOpen && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.editorPalette}>
@@ -726,102 +843,146 @@ export default function App() {
                 </ScrollView>
               )}
 
-              {/* 3. Inline Notation Timeline */}
-              {settings.inlineNotations && (
-                <View style={styles.timelineWrapper}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timelineScroll}>
-                    <TouchableOpacity
-                      style={[styles.timelinePill, currentMoveIndex === -1 && styles.timelinePillActive]}
-                      onPress={handleClearAllMoves}
-                    >
-                      <Compass size={12} color={currentMoveIndex === -1 ? '#FFFFFF' : '#64748B'} style={{ marginRight: 4 }} />
-                      <Text style={[styles.timelineText, currentMoveIndex === -1 && styles.timelineTextActive]}>
-                        Start
+              {/* 5. Two-Tab Navigation: 🧭 Compass (JEV Coach) vs ♟️ Moves (Two Columns) */}
+              <View style={styles.analysisTabRow}>
+                <TouchableOpacity
+                  style={[styles.analysisTabBtn, analysisTab === 'compass' && styles.analysisTabBtnActive]}
+                  onPress={() => setAnalysisTab('compass')}
+                >
+                  <Compass size={15} color={analysisTab === 'compass' ? '#2563EB' : '#64748B'} />
+                  <Text style={[styles.analysisTabBtnText, analysisTab === 'compass' && styles.analysisTabBtnTextActive]}>
+                    🧭 Compass (JEV Coach)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.analysisTabBtn, analysisTab === 'moves' && styles.analysisTabBtnActive]}
+                  onPress={() => setAnalysisTab('moves')}
+                >
+                  <Layers size={15} color={analysisTab === 'moves' ? '#2563EB' : '#64748B'} />
+                  <Text style={[styles.analysisTabBtnText, analysisTab === 'moves' && styles.analysisTabBtnTextActive]}>
+                    ♟️ Move History ({historyMoves.length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 6. Content Area: Compass JEV Interface OR Two-Column Move List */}
+              {analysisTab === 'compass' ? (
+                <ScrollView style={styles.analysisScrollView} showsVerticalScrollIndicator={false}>
+                  {settings.showComments && (
+                    <View style={styles.cognitiveCard}>
+                      <View style={styles.cognitiveCardHeader}>
+                        <Text style={styles.cognitiveHeaderTitle}>🧠 JEV System-1 Cognitive OS</Text>
+                        <View style={styles.cognitiveConceptPill}>
+                          <Text style={styles.cognitiveConceptTag}>{cognitiveInsight.concept}</Text>
+                        </View>
+                      </View>
+
+                      {/* JEV Core Idea Banner */}
+                      <View style={styles.jevCoreIdeaBanner}>
+                        <Text style={styles.jevCoreIdeaLabel}>⚡ JEV Core Idea</Text>
+                        <Text style={styles.jevCoreIdeaText}>
+                          {cognitiveInsight.jev?.coreIdea || cognitiveInsight.why}
+                        </Text>
+                      </View>
+
+                      {/* Invariant Extraction Breakdown */}
+                      {cognitiveInsight.jev && (
+                        <View style={styles.jevPrimitivesContainer}>
+                          <View style={styles.jevPrimitiveRow}>
+                            <Text style={styles.jevPrimitiveKey}>🎯 Threat:</Text>
+                            <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.threat}</Text>
+                          </View>
+                          <View style={styles.jevPrimitiveRow}>
+                            <Text style={styles.jevPrimitiveKey}>🔒 Constraint:</Text>
+                            <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.constraint}</Text>
+                          </View>
+                          <View style={styles.jevPrimitiveRow}>
+                            <Text style={styles.jevPrimitiveKey}>🔄 Transform:</Text>
+                            <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.transformation}</Text>
+                          </View>
+                          <View style={styles.jevPrimitiveRow}>
+                            <Text style={styles.jevPrimitiveKey}>🔗 Dependency:</Text>
+                            <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.dependency}</Text>
+                          </View>
+                          <View style={styles.jevPrimitiveRow}>
+                            <Text style={styles.jevPrimitiveKey}>💎 Invariant:</Text>
+                            <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.invariant}</Text>
+                          </View>
+                          <View style={styles.jevPrimitiveRow}>
+                            <Text style={styles.jevPrimitiveKey}>⚠️ Failure If:</Text>
+                            <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.failureCondition}</Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {settings.showIndianLines && (
+                    <View style={styles.indianLinesCard}>
+                      <Text style={styles.indianLinesTitle}>🇮🇳 Indian Lines Variation:</Text>
+                      <Text style={styles.indianLinesBody}>
+                        King's Indian / Queen's Indian Defense Structure: 1. d4 Nf6 2. c4 e6 3. Nf3 b6.
                       </Text>
-                    </TouchableOpacity>
-
-                    {historyMoves.map((m, idx) => {
-                      const moveNum = Math.floor(idx / 2) + 1;
-                      const isWhite = idx % 2 === 0;
-                      const label = isWhite ? `${moveNum}. ${m.san}` : `${m.san}`;
-                      const isActive = currentMoveIndex === idx;
-
-                      return (
-                        <TouchableOpacity
-                          key={idx}
-                          style={[styles.timelinePill, isActive && styles.timelinePillActive]}
-                          onPress={() => handleJumpToMove(idx)}
-                        >
-                          <Text style={[styles.timelineText, isActive && styles.timelineTextActive]}>
-                            {label}{cognitiveInsight.annotation}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+                    </View>
+                  )}
+                </ScrollView>
+              ) : (
+                /* Two-Column Move List: White First | Black Second */
+                <View style={styles.moveTableContainer}>
+                  <View style={styles.moveTableHeader}>
+                    <Text style={[styles.moveTableHeadText, { width: 38 }]}>#</Text>
+                    <Text style={[styles.moveTableHeadText, { flex: 1 }]}>⚪ White (First)</Text>
+                    <Text style={[styles.moveTableHeadText, { flex: 1 }]}>⚫ Black</Text>
+                  </View>
+                  <ScrollView style={styles.moveTableScroll} showsVerticalScrollIndicator={true}>
+                    {movePairs.length === 0 ? (
+                      <View style={styles.emptyMovesBox}>
+                        <Text style={styles.emptyMovesText}>No moves played yet. Tap or drag pieces on the board.</Text>
+                      </View>
+                    ) : (
+                      movePairs.map((pair, roundIdx) => (
+                        <View key={roundIdx} style={styles.moveTableRow}>
+                          <Text style={styles.moveTableNum}>{roundIdx + 1}.</Text>
+                          <TouchableOpacity
+                            style={[
+                              styles.moveTableCell,
+                              currentMoveIndex === pair.whiteIndex && styles.moveTableCellActive,
+                            ]}
+                            onPress={() => handleJumpToMove(pair.whiteIndex)}
+                          >
+                            <Text
+                              style={[
+                                styles.moveTableText,
+                                currentMoveIndex === pair.whiteIndex && styles.moveTableTextActive,
+                              ]}
+                            >
+                              {pair.white?.san || ''}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.moveTableCell,
+                              pair.blackIndex !== null && currentMoveIndex === pair.blackIndex && styles.moveTableCellActive,
+                            ]}
+                            onPress={() => pair.blackIndex !== null && handleJumpToMove(pair.blackIndex)}
+                            disabled={pair.blackIndex === null}
+                          >
+                            <Text
+                              style={[
+                                styles.moveTableText,
+                                pair.blackIndex !== null && currentMoveIndex === pair.blackIndex && styles.moveTableTextActive,
+                              ]}
+                            >
+                              {pair.black?.san || ''}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))
+                    )}
                   </ScrollView>
                 </View>
               )}
-
-              {/* 4. Cognitive Comments */}
-              <ScrollView style={styles.analysisScrollView} showsVerticalScrollIndicator={false}>
-                {settings.showComments && (
-                  <View style={styles.cognitiveCard}>
-                    <View style={styles.cognitiveCardHeader}>
-                      <Text style={styles.cognitiveHeaderTitle}>🧠 JEV System-1 Cognitive OS</Text>
-                      <View style={styles.cognitiveConceptPill}>
-                        <Text style={styles.cognitiveConceptTag}>{cognitiveInsight.concept}</Text>
-                      </View>
-                    </View>
-
-                    {/* JEV Core Idea Banner */}
-                    <View style={styles.jevCoreIdeaBanner}>
-                      <Text style={styles.jevCoreIdeaLabel}>⚡ JEV Core Idea</Text>
-                      <Text style={styles.jevCoreIdeaText}>
-                        {cognitiveInsight.jev?.coreIdea || cognitiveInsight.why}
-                      </Text>
-                    </View>
-
-                    {/* Invariant Extraction Breakdown */}
-                    {cognitiveInsight.jev && (
-                      <View style={styles.jevPrimitivesContainer}>
-                        <View style={styles.jevPrimitiveRow}>
-                          <Text style={styles.jevPrimitiveKey}>🎯 Threat:</Text>
-                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.threat}</Text>
-                        </View>
-                        <View style={styles.jevPrimitiveRow}>
-                          <Text style={styles.jevPrimitiveKey}>🔒 Constraint:</Text>
-                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.constraint}</Text>
-                        </View>
-                        <View style={styles.jevPrimitiveRow}>
-                          <Text style={styles.jevPrimitiveKey}>🔄 Transform:</Text>
-                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.transformation}</Text>
-                        </View>
-                        <View style={styles.jevPrimitiveRow}>
-                          <Text style={styles.jevPrimitiveKey}>🔗 Dependency:</Text>
-                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.dependency}</Text>
-                        </View>
-                        <View style={styles.jevPrimitiveRow}>
-                          <Text style={styles.jevPrimitiveKey}>💎 Invariant:</Text>
-                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.invariant}</Text>
-                        </View>
-                        <View style={styles.jevPrimitiveRow}>
-                          <Text style={styles.jevPrimitiveKey}>⚠️ Failure If:</Text>
-                          <Text style={styles.jevPrimitiveVal}>{cognitiveInsight.jev.failureCondition}</Text>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                {settings.showIndianLines && (
-                  <View style={styles.indianLinesCard}>
-                    <Text style={styles.indianLinesTitle}>🇮🇳 Indian Lines Variation:</Text>
-                    <Text style={styles.indianLinesBody}>
-                      King's Indian / Queen's Indian Defense Structure: 1. d4 Nf6 2. c4 e6 3. Nf3 b6.
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
 
               {/* 5. Bottom Pill-Shaped Navbar */}
               <View style={styles.bottomNebba}>
@@ -2784,5 +2945,193 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
+  },
+  // Player Info Bar & Captured Pieces
+  playerInfoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 12,
+    marginVertical: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  playerInfoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  playerAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  playerAvatarText: {
+    fontSize: 14,
+  },
+  playerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 1,
+  },
+  capturedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  capturedPieceText: {
+    fontSize: 14,
+    color: '#334155',
+    marginRight: 2,
+  },
+  advantageBadge: {
+    backgroundColor: '#0F172A',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginLeft: 4,
+  },
+  advantageBadgeText: {
+    color: '#38BDF8',
+    fontSize: 9.5,
+    fontWeight: '900',
+  },
+  turnIndicator: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  turnIndicatorText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  turnIndicatorActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+  },
+  turnIndicatorTextActive: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  // Two-Tab Bar (🧭 Compass vs ♟️ Moves)
+  analysisTabRow: {
+    flexDirection: 'row',
+    backgroundColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 3,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  analysisTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 9,
+  },
+  analysisTabBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  analysisTabBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748B',
+    marginLeft: 5,
+  },
+  analysisTabBtnTextActive: {
+    color: '#2563EB',
+    fontWeight: '800',
+  },
+  // Two-Column Move Table Styles
+  moveTableContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 16,
+    padding: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    marginBottom: 8,
+    minHeight: 180,
+  },
+  moveTableHeader: {
+    flexDirection: 'row',
+    paddingBottom: 8,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 4,
+  },
+  moveTableHeadText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    textTransform: 'uppercase',
+  },
+  moveTableScroll: {
+    flex: 1,
+  },
+  moveTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  moveTableNum: {
+    width: 38,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  moveTableCell: {
+    flex: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginHorizontal: 2,
+  },
+  moveTableCellActive: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#2563EB',
+  },
+  moveTableText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  moveTableTextActive: {
+    color: '#2563EB',
+    fontWeight: '900',
+  },
+  emptyMovesBox: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyMovesText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
   },
 });

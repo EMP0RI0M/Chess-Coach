@@ -48,10 +48,18 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
     const scale = useSharedValue(1);
     const zIndex = useSharedValue(1);
 
-    // High-performance unified Pan gesture (handles both zero-lag drag & clean taps)
+    const tapGesture = Gesture.Tap()
+      .enabled(!disabled)
+      .maxDuration(250)
+      .onEnd(() => {
+        'worklet';
+        runOnJS(onSelectSquare)(square);
+      });
+
+    // High-performance unified Pan gesture (handles zero-lag drag moves)
     const panGesture = Gesture.Pan()
       .enabled(!disabled)
-      .minDistance(2)
+      .minDistance(4)
       .onStart(() => {
         'worklet';
         scale.value = withSpring(1.15, SPRING_CONFIG);
@@ -59,7 +67,6 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
       })
       .onUpdate((event) => {
         'worklet';
-        // 100% native thread position tracking without any JS bridge overhead
         translateX.value = event.translationX;
         translateY.value = event.translationY;
       })
@@ -75,8 +82,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
         scale.value = withSpring(1, SPRING_CONFIG);
         zIndex.value = 1;
 
-        // Check if it was a simple tap (distance < 12px) or a drag move
-        if (distanceSq < 144) {
+        if (distanceSq < 64) {
           runOnJS(onSelectSquare)(square);
           return;
         }
@@ -109,6 +115,8 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
         }
       });
 
+    const composedGesture = Gesture.Race(panGesture, tapGesture);
+
     const animatedStyle = useAnimatedStyle(() => {
       return {
         transform: [
@@ -121,7 +129,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
     });
 
     return (
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={composedGesture}>
         <Animated.View
           renderToHardwareTextureAndroid={true}
           style={[
