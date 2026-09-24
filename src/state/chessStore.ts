@@ -16,6 +16,7 @@ export interface ChessSettings {
   serverAnalysis: boolean;
   // Display & Board
   smallBoard: boolean;
+  useChessground: boolean;
   showEvalGauge: boolean;
   showSideEvalBar: boolean;
   inlineNotations: boolean;
@@ -98,6 +99,7 @@ export const useChessStore = create<ChessGameState>((set, get) => {
       bestHero: true,
       serverAnalysis: false,
       smallBoard: false,
+      useChessground: false,
       showEvalGauge: true,
       showSideEvalBar: true,
       inlineNotations: true,

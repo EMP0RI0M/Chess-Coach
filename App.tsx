@@ -18,6 +18,7 @@ import { useStockfishEngine } from './src/engine/stockfish';
 import { identifyEco } from './src/engine/ecoService';
 import { DAILY_PUZZLES, ChessPuzzle } from './src/engine/puzzleService';
 import { ChessBoardView } from './src/components/ChessBoardView';
+import { ChessgroundView } from './src/components/ChessgroundView';
 import { sensoryAudioEngine } from './src/engine/sensoryAnchoring';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import {
@@ -564,36 +565,45 @@ export default function App() {
                 </View>
               )}
 
-              {/* 2. Interactive Chessboard with Reanimated 60 FPS Native Gestures */}
-              <ChessBoardView
-                chess={chess}
-                fen={fen}
-                boardSize={boardSize}
-                isWhiteOrientation={isWhiteOrientation}
-                selectedSquare={selectedSquare}
-                possibleMoves={possibleMoves}
-                lastMove={lastMove}
-                bestMoveArrow={arrowPoints}
-                multiMoveArrows={multiMoveArrows}
-                heroSquare={
-                  settings.bestHero
-                    ? ((evaluation.bestMove && evaluation.bestMove.length >= 4
-                        ? evaluation.bestMove.substring(2, 4)
-                        : lastMove?.to) as Square | null)
-                    : null
-                }
-                threatsEnabled={settings.showThreats}
-                coordinatesEnabled={settings.inlineNotations}
-                onSquarePress={handleSquarePress}
-                onDropMove={handleDropMove}
-                isEditorActive={isBoardEditorOpen}
-                boardTheme={settings.boardTheme}
-                pieceTheme={settings.pieceTheme}
-                sideEvalCp={evaluation.scoreCp}
-                sideEvalMate={evaluation.scoreMate}
-                showSideEvalBar={settings.showSideEvalBar}
-                jevImprint={evaluation.imprint}
-              />
+              {/* 2. Interactive Chessboard (Reanimated 120 FPS Native or Official Lichess Chessground) */}
+              {settings.useChessground ? (
+                <ChessgroundView
+                  fen={fen}
+                  isWhiteOrientation={isWhiteOrientation}
+                  boardSize={boardSize}
+                  onMove={handleDropMove}
+                />
+              ) : (
+                <ChessBoardView
+                  chess={chess}
+                  fen={fen}
+                  boardSize={boardSize}
+                  isWhiteOrientation={isWhiteOrientation}
+                  selectedSquare={selectedSquare}
+                  possibleMoves={possibleMoves}
+                  lastMove={lastMove}
+                  bestMoveArrow={arrowPoints}
+                  multiMoveArrows={multiMoveArrows}
+                  heroSquare={
+                    settings.bestHero
+                      ? ((evaluation.bestMove && evaluation.bestMove.length >= 4
+                          ? evaluation.bestMove.substring(2, 4)
+                          : lastMove?.to) as Square | null)
+                      : null
+                  }
+                  threatsEnabled={settings.showThreats}
+                  coordinatesEnabled={settings.inlineNotations}
+                  onSquarePress={handleSquarePress}
+                  onDropMove={handleDropMove}
+                  isEditorActive={isBoardEditorOpen}
+                  boardTheme={settings.boardTheme}
+                  pieceTheme={settings.pieceTheme}
+                  sideEvalCp={evaluation.scoreCp}
+                  sideEvalMate={evaluation.scoreMate}
+                  showSideEvalBar={settings.showSideEvalBar}
+                  jevImprint={evaluation.imprint}
+                />
+              )}
 
               {/* Board Editor Piece Palette */}
               {isBoardEditorOpen && (
@@ -1157,6 +1167,16 @@ export default function App() {
 
                 {/* Section: Display & Analysis Settings */}
                 <Text style={styles.settingsSectionTitle}>Display & Analysis</Text>
+
+                {/* Official Lichess Chessground Toggle */}
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Official Lichess Chessground</Text>
+                  <Switch
+                    value={settings.useChessground}
+                    onValueChange={(val) => updateSetting('useChessground', val)}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
 
                 {/* 8. Show Evaluation Gauge */}
                 <View style={styles.settingRow}>
