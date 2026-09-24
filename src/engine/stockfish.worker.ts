@@ -1,5 +1,6 @@
 import { searchBestMove, evaluateBoardState } from './androidChessEngine';
 import { rustEngineBridge } from './rustWasmEngine';
+import { jevCognitiveFilter } from './jevFilter';
 import { Chess } from 'chess.js';
 
 export interface WorkerMessage {
@@ -64,20 +65,42 @@ class StockfishWorkerController {
             pvLine: '',
           },
         });
+
+        // 2. Jev System-One Non-Autoregressive Policy Filter (<3ms)
+        const legalMoves = tempChess.moves({ verbose: true });
+        const jevDecision = jevCognitiveFilter.filterPosition(fen, legalMoves);
+
+        // If Jev is 99% confident on obvious move (e.g. forced recapture/check escape), bypass deep search
+        if (jevDecision.isObviousMove && jevDecision.policyMove) {
+          this.emit({
+            type: 'MOVE_FOUND',
+            data: {
+              bestMove: jevDecision.policyMove,
+              scoreCp: staticScore,
+              depth: 1,
+              pvLine: `⚡ Jev Fast-Policy: ${jevDecision.cognitiveInsight}`,
+            },
+          });
+          return;
+        }
       } catch (err: any) {
         this.emit({ type: 'ERROR', error: err.message });
       }
 
-      // 2. Bounded asynchronous engine search budget (movetime)
+      // 3. Bounded asynchronous engine search with dynamic Jev depth allocation
       setTimeout(() => {
         if (calcId !== this.currentCalculationId) return;
 
         try {
           const tempChess = new Chess(fen);
-          const searchResult = searchBestMove(tempChess, depth);
+          const legalMoves = tempChess.moves({ verbose: true });
+          const jevDecision = jevCognitiveFilter.filterPosition(fen, legalMoves);
+          const allocatedDepth = Math.max(depth, jevDecision.recommendedDepth);
+
+          const searchResult = searchBestMove(tempChess, allocatedDepth);
           const bestMoveLan = searchResult.bestMove
             ? `${searchResult.bestMove.from}${searchResult.bestMove.to}`
-            : null;
+            : (jevDecision.policyMove || null);
           const pvStr = searchResult.bestMove ? searchResult.bestMove.san : '';
 
           this.emit({
@@ -85,7 +108,7 @@ class StockfishWorkerController {
             data: {
               bestMove: bestMoveLan,
               scoreCp: searchResult.scoreCp,
-              depth,
+              depth: allocatedDepth,
               pvLine: pvStr,
             },
           });
