@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -23,6 +23,14 @@ interface DraggablePieceProps {
   pieceTheme?: PieceTheme;
 }
 
+// 120 FPS High-Response Spring Physics (Lichess feel)
+const SPRING_CONFIG = {
+  damping: 22,
+  mass: 0.5,
+  stiffness: 280,
+  overshootClamping: true,
+};
+
 export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
   ({
     square,
@@ -40,26 +48,37 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
     const scale = useSharedValue(1);
     const zIndex = useSharedValue(1);
 
+    // Tap Gesture for instantaneous selection
+    const tapGesture = Gesture.Tap()
+      .enabled(!disabled)
+      .onEnd(() => {
+        runOnJS(onSelectSquare)(square);
+      });
+
+    // Pan Gesture for fluid 120Hz native-thread tracking
     const panGesture = Gesture.Pan()
       .enabled(!disabled)
+      .activeOffsetX([-6, 6])
+      .activeOffsetY([-6, 6])
       .onStart(() => {
-        scale.value = withSpring(1.18, { damping: 15, stiffness: 200 });
-        zIndex.value = 100;
+        scale.value = withSpring(1.15, SPRING_CONFIG);
+        zIndex.value = 999;
         runOnJS(onSelectSquare)(square);
       })
       .onUpdate((event) => {
-        // Direct native thread position tracking without re-rendering React
+        'worklet';
         translateX.value = event.translationX;
         translateY.value = event.translationY;
       })
       .onEnd((event) => {
+        'worklet';
         const deltaCol = Math.round(event.translationX / squareSize);
         const deltaRow = Math.round(event.translationY / squareSize);
 
-        // Snap animation back on the native thread
-        translateX.value = withSpring(0, { damping: 18, stiffness: 220 });
-        translateY.value = withSpring(0, { damping: 18, stiffness: 220 });
-        scale.value = withSpring(1, { damping: 18, stiffness: 220 });
+        // Immediate snap-back on native UI thread
+        translateX.value = withSpring(0, SPRING_CONFIG);
+        translateY.value = withSpring(0, SPRING_CONFIG);
+        scale.value = withSpring(1, SPRING_CONFIG);
         zIndex.value = 1;
 
         if (deltaCol !== 0 || deltaRow !== 0) {
@@ -90,6 +109,8 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
         }
       });
 
+    const composedGesture = Gesture.Race(panGesture, tapGesture);
+
     const animatedStyle = useAnimatedStyle(() => {
       return {
         transform: [
@@ -102,15 +123,16 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
     });
 
     return (
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={composedGesture}>
         <Animated.View
+          renderToHardwareTextureAndroid={true}
           style={[
             styles.pieceContainer,
             { width: squareSize, height: squareSize },
             animatedStyle,
           ]}
         >
-          <ChessPieceSvg color={color} type={type} size={squareSize * 0.78} theme={pieceTheme} />
+          <ChessPieceSvg color={color} type={type} size={squareSize * 0.82} theme={pieceTheme} />
         </Animated.View>
       </GestureDetector>
     );

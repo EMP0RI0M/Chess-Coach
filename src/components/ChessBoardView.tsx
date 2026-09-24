@@ -124,29 +124,8 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                   const isJevCritical = jevImprint && jevImprint.criticalSquare === squareName;
                   const jevGlowColor = jevImprint?.uiColorOverlay || '#EF4444';
 
-                  return (
-                    <TouchableOpacity
-                      key={squareName}
-                      activeOpacity={0.9}
-                      onPress={() => onSquarePress(squareName)}
-                      style={[
-                        styles.square,
-                        {
-                          width: squareSize,
-                          height: squareSize,
-                          backgroundColor: isLight ? themeColors.light : themeColors.dark,
-                        },
-                        isSelected && styles.selectedSquare,
-                        isLastMoveSquare && styles.lastMoveSquare,
-                        isHero && styles.heroSquareHighlight,
-                        isThreat && styles.threatHighlight,
-                        isJevCritical && {
-                          backgroundColor: `${jevGlowColor}44`,
-                          borderWidth: 2,
-                          borderColor: jevGlowColor,
-                        },
-                      ]}
-                    >
+                  const squareContent = (
+                    <>
                       {/* Rank Coordinates */}
                       {coordinatesEnabled && fIdx === 0 && (
                         <Text
@@ -185,7 +164,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                         />
                       )}
 
-                      {/* Reanimated 60 FPS Native-Thread Draggable Piece */}
+                      {/* Reanimated 120 FPS Native-Thread Draggable Piece */}
                       {piece && (
                         <DraggablePiece
                           square={squareName}
@@ -199,6 +178,43 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                           pieceTheme={pieceTheme}
                         />
                       )}
+                    </>
+                  );
+
+                  const squareStyle = [
+                    styles.square,
+                    {
+                      width: squareSize,
+                      height: squareSize,
+                      backgroundColor: isLight ? themeColors.light : themeColors.dark,
+                    },
+                    isSelected && styles.selectedSquare,
+                    isLastMoveSquare && styles.lastMoveSquare,
+                    isHero && styles.heroSquareHighlight,
+                    isThreat && styles.threatHighlight,
+                    isJevCritical && {
+                      backgroundColor: `${jevGlowColor}44`,
+                      borderWidth: 2,
+                      borderColor: jevGlowColor,
+                    },
+                  ];
+
+                  if (piece) {
+                    return (
+                      <View key={squareName} style={squareStyle}>
+                        {squareContent}
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      key={squareName}
+                      activeOpacity={0.8}
+                      onPress={() => onSquarePress(squareName)}
+                      style={squareStyle}
+                    >
+                      {squareContent}
                     </TouchableOpacity>
                   );
                 })}
