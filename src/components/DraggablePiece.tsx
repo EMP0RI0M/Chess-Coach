@@ -25,9 +25,9 @@ interface DraggablePieceProps {
 
 // 120 FPS High-Response Spring Physics (Lichess feel)
 const SPRING_CONFIG = {
-  damping: 22,
-  mass: 0.5,
-  stiffness: 280,
+  damping: 24,
+  mass: 0.4,
+  stiffness: 320,
   overshootClamping: true,
 };
 
@@ -48,25 +48,18 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
     const scale = useSharedValue(1);
     const zIndex = useSharedValue(1);
 
-    // Tap Gesture for instantaneous selection
-    const tapGesture = Gesture.Tap()
-      .enabled(!disabled)
-      .onEnd(() => {
-        runOnJS(onSelectSquare)(square);
-      });
-
-    // Pan Gesture for fluid 120Hz native-thread tracking
+    // High-performance unified Pan gesture (handles both zero-lag drag & clean taps)
     const panGesture = Gesture.Pan()
       .enabled(!disabled)
-      .activeOffsetX([-6, 6])
-      .activeOffsetY([-6, 6])
+      .minDistance(2)
       .onStart(() => {
+        'worklet';
         scale.value = withSpring(1.15, SPRING_CONFIG);
         zIndex.value = 999;
-        runOnJS(onSelectSquare)(square);
       })
       .onUpdate((event) => {
         'worklet';
+        // 100% native thread position tracking without any JS bridge overhead
         translateX.value = event.translationX;
         translateY.value = event.translationY;
       })
@@ -74,6 +67,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
         'worklet';
         const deltaCol = Math.round(event.translationX / squareSize);
         const deltaRow = Math.round(event.translationY / squareSize);
+        const distanceSq = event.translationX * event.translationX + event.translationY * event.translationY;
 
         // Immediate snap-back on native UI thread
         translateX.value = withSpring(0, SPRING_CONFIG);
@@ -81,11 +75,17 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
         scale.value = withSpring(1, SPRING_CONFIG);
         zIndex.value = 1;
 
+        // Check if it was a simple tap (distance < 12px) or a drag move
+        if (distanceSq < 144) {
+          runOnJS(onSelectSquare)(square);
+          return;
+        }
+
         if (deltaCol !== 0 || deltaRow !== 0) {
           const fileChar = square[0];
           const rankNum = parseInt(square[1], 10);
 
-          const colIndex = fileChar.charCodeAt(0) - 'a'.charCodeAt(0);
+          const colIndex = fileChar.charCodeAt(0) - 97;
           const rowIndex = rankNum - 1;
 
           let targetCol: number;
@@ -100,7 +100,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
           }
 
           if (targetCol >= 0 && targetCol <= 7 && targetRow >= 0 && targetRow <= 7) {
-            const targetFile = String.fromCharCode('a'.charCodeAt(0) + targetCol);
+            const targetFile = String.fromCharCode(97 + targetCol);
             const targetRank = (targetRow + 1).toString();
             const targetSquare = `${targetFile}${targetRank}` as Square;
 
@@ -108,8 +108,6 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
           }
         }
       });
-
-    const composedGesture = Gesture.Race(panGesture, tapGesture);
 
     const animatedStyle = useAnimatedStyle(() => {
       return {
@@ -123,7 +121,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
     });
 
     return (
-      <GestureDetector gesture={composedGesture}>
+      <GestureDetector gesture={panGesture}>
         <Animated.View
           renderToHardwareTextureAndroid={true}
           style={[
