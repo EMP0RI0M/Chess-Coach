@@ -145,6 +145,16 @@ export default function App() {
 
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
   const [analysisTab, setAnalysisTab] = useState<'compass' | 'moves'>('compass');
+  const moveTableRef = React.useRef<ScrollView>(null);
+
+  // Smooth auto-scroll to active move in Move List
+  useEffect(() => {
+    if (analysisTab === 'moves' && moveTableRef.current) {
+      setTimeout(() => {
+        moveTableRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [currentMoveIndex, analysisTab]);
 
   // Zustand Store Actions
   const setScreen = useChessStore((s) => s.setScreen);
@@ -935,7 +945,7 @@ export default function App() {
                     <Text style={[styles.moveTableHeadText, { flex: 1 }]}>⚪ White (First)</Text>
                     <Text style={[styles.moveTableHeadText, { flex: 1 }]}>⚫ Black</Text>
                   </View>
-                  <ScrollView style={styles.moveTableScroll} showsVerticalScrollIndicator={true}>
+                  <ScrollView ref={moveTableRef} style={styles.moveTableScroll} showsVerticalScrollIndicator={true}>
                     {movePairs.length === 0 ? (
                       <View style={styles.emptyMovesBox}>
                         <Text style={styles.emptyMovesText}>No moves played yet. Tap or drag pieces on the board.</Text>

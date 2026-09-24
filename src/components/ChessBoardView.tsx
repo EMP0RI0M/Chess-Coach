@@ -422,30 +422,32 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   selectedSquare: {
-    backgroundColor: 'rgba(245, 158, 11, 0.65)',
+    backgroundColor: 'rgba(245, 158, 11, 0.45)',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
   },
   lastMoveSquare: {
-    backgroundColor: 'rgba(59, 130, 246, 0.35)',
+    backgroundColor: 'rgba(59, 130, 246, 0.28)',
   },
   heroSquareHighlight: {
-    backgroundColor: 'rgba(16, 185, 129, 0.42)',
+    backgroundColor: 'rgba(16, 185, 129, 0.35)',
     borderWidth: 1.5,
     borderColor: '#10B981',
   },
   threatHighlight: {
-    backgroundColor: 'rgba(239, 68, 68, 0.28)',
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
   },
   threatenedPieceHighlight: {
-    backgroundColor: 'rgba(239, 68, 68, 0.35)',
-    borderWidth: 2,
+    backgroundColor: 'rgba(239, 68, 68, 0.3)',
+    borderWidth: 1.5,
     borderColor: '#EF4444',
   },
   attackingPieceHighlight: {
-    backgroundColor: 'rgba(245, 158, 11, 0.22)',
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
   },
   jevCriticalSquareGlow: {
-    backgroundColor: 'rgba(239, 68, 68, 0.45)',
-    borderWidth: 2,
+    backgroundColor: 'rgba(239, 68, 68, 0.38)',
+    borderWidth: 1.5,
     borderColor: '#EF4444',
   },
   coordRank: {
@@ -465,12 +467,20 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   moveDot: {
-    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    backgroundColor: 'rgba(15, 23, 42, 0.32)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.65)',
     zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
   captureRing: {
     borderWidth: 3.5,
-    borderColor: 'rgba(239, 68, 68, 0.6)',
+    borderColor: 'rgba(239, 68, 68, 0.75)',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
     zIndex: 5,
   },
 });

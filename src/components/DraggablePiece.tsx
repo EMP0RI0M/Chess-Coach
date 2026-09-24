@@ -23,12 +23,12 @@ interface DraggablePieceProps {
   pieceTheme?: PieceTheme;
 }
 
-// 120 FPS High-Response Spring Physics (Lichess feel)
+// 120 FPS High-Response Spring Physics (Ultra-Smooth Lichess/Chess.com feel)
 const SPRING_CONFIG = {
-  damping: 24,
-  mass: 0.4,
-  stiffness: 320,
-  overshootClamping: true,
+  damping: 26,
+  mass: 0.32,
+  stiffness: 280,
+  overshootClamping: false,
 };
 
 export const DraggablePiece: React.FC<DraggablePieceProps> = React.memo(
