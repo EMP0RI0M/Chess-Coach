@@ -21,7 +21,10 @@ export function useStockfishEngine() {
   });
 
   const [engineReady, setEngineReady] = useState(false);
+  const stockfishLoopRef = useRef<(() => void) | null>(null);
+  const stopStockfishRef = useRef<(() => void) | null>(null);
   const sendCommandRef = useRef<((cmd: string) => void) | null>(null);
+  const pendingFenRef = useRef<string | null>(null);
 
   // Parse raw UCI output stream (e.g., "info depth 12 score cp 45 pv e2e4 e7e5")
   const parseUciOutput = useCallback((output: string) => {
@@ -67,16 +70,25 @@ export function useStockfishEngine() {
 
   // Initialize Native Engine if available
   useEffect(() => {
+    let unmounted = false;
     try {
       const stockfishLib = require('@loloof64/react-native-stockfish');
       if (stockfishLib && stockfishLib.useStockfish) {
-        // Native module is available
         setEngineReady(true);
       }
     } catch {
-      // Fallback mode for web/Expo Go previews
       setEngineReady(false);
     }
+    return () => {
+      unmounted = true;
+      if (stopStockfishRef.current) {
+        try {
+          stopStockfishRef.current();
+        } catch {
+          // ignore
+        }
+      }
+    };
   }, []);
 
   // Send FEN position to Stockfish for real evaluation
@@ -84,17 +96,18 @@ export function useStockfishEngine() {
     (fen: string, depth = 15) => {
       setEvaluation((prev) => ({ ...prev, isCalculating: true }));
 
-      if (sendCommandRef.current) {
-        try {
-          sendCommandRef.current(`position fen ${fen}`);
-          sendCommandRef.current(`go depth ${depth}`);
+      try {
+        const stockfishLib = require('@loloof64/react-native-stockfish');
+        if (stockfishLib && stockfishLib.default && stockfishLib.default.sendCommandToStockfish) {
+          stockfishLib.default.sendCommandToStockfish(`position fen ${fen}\n`);
+          stockfishLib.default.sendCommandToStockfish(`go depth ${depth}\n`);
           return;
-        } catch {
-          // Native command failed, fallback
         }
+      } catch {
+        // Fallback for preview
       }
 
-      // Safe heuristic fallback for non-native environments
+      // Safe heuristic calculation for non-native environments
       const isBlackTurn = fen.includes(' b ');
       const fallbackCp = isBlackTurn ? -0.15 : 0.25;
       setEvaluation((prev) => ({
@@ -109,12 +122,13 @@ export function useStockfishEngine() {
   );
 
   const stopEvaluation = useCallback(() => {
-    if (sendCommandRef.current) {
-      try {
-        sendCommandRef.current('stop');
-      } catch {
-        // ignore
+    try {
+      const stockfishLib = require('@loloof64/react-native-stockfish');
+      if (stockfishLib && stockfishLib.default && stockfishLib.default.sendCommandToStockfish) {
+        stockfishLib.default.sendCommandToStockfish('stop\n');
       }
+    } catch {
+      // ignore
     }
     setEvaluation((prev) => ({ ...prev, isCalculating: false }));
   }, []);

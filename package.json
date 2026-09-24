@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
-    "@loloof64/react-native-stockfish": "file:../ReactNativeStockfish",
+    "@loloof64/react-native-stockfish": "^0.3.3",
     "chess.js": "^1.4.0",
     "expo": "~57.0.24",
     "expo-status-bar": "~57.0.1",
