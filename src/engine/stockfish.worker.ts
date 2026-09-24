@@ -104,25 +104,27 @@ class StockfishWorkerController {
           },
         });
 
-        // 3. High-confidence fast policy bypass (<3ms forward pass)
-        if (jevDecision.isObviousMove && jevDecision.policyMove) {
-          const quickJevAnalysis = jevInvariantExtractor.extract(fen, [jevDecision.policyMove], staticScore);
+        // 3. Forced move instant return (strictly when only 1 legal move exists)
+        if (legalMoves.length === 1) {
+          const forcedMove = legalMoves[0];
+          const forcedLan = `${forcedMove.from}${forcedMove.to}`;
+          const quickJevAnalysis = jevInvariantExtractor.extract(fen, [forcedLan], staticScore);
           superCache.set(
             fen,
-            jevDecision.policyMove,
+            forcedLan,
             staticScore,
             1,
-            `⚡ Jev Fast-Policy: ${jevDecision.cognitiveInsight}`,
+            `⚡ Forced move: ${forcedMove.san}`,
             jevDecision.imprint
           );
 
           this.emit({
             type: 'MOVE_FOUND',
             data: {
-              bestMove: jevDecision.policyMove,
+              bestMove: forcedLan,
               scoreCp: staticScore,
               depth: 1,
-              pvLine: `⚡ Jev Fast-Policy: ${jevDecision.cognitiveInsight}`,
+              pvLine: `⚡ Forced: ${forcedMove.san}`,
               imprint: jevDecision.imprint,
               jevAnalysis: quickJevAnalysis,
             },

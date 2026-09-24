@@ -5,6 +5,7 @@ import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import { DraggablePiece } from './DraggablePiece';
 import { BoardTheme, PieceTheme } from '../state/chessStore';
 import { JevVisualImprint } from '../engine/jevFilter';
+import { detectPositionThreats } from '../engine/threatDetector';
 
 export interface MultiMoveArrow {
   from: { x: number; y: number };
@@ -106,6 +107,18 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
       };
     }, [jevImprint?.vectorClampLine, isWhiteOrientation, squareSize]);
 
+    // Real Threat Detection (Calculates opponent threat vectors and attacked pieces)
+    const threatAnalysis = React.useMemo(() => {
+      if (!threatsEnabled) {
+        return {
+          threatLines: [],
+          attackedSquares: new Set<string>(),
+          threatenedPieceSquares: new Set<string>(),
+        };
+      }
+      return detectPositionThreats(fen || chess.fen());
+    }, [threatsEnabled, fen, chess]);
+
     const activeTurn = chess.turn();
 
     return (
@@ -138,7 +151,9 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                   const isLastMoveSquare =
                     lastMove?.from === squareName || lastMove?.to === squareName;
                   const isHero = heroSquare === squareName;
-                  const isThreat = threatsEnabled && piece && piece.color !== activeTurn;
+                  // Threat is active if this piece belongs to the active player and is under direct attack
+                  const isThreatenedPiece = threatsEnabled && piece && piece.color === activeTurn && threatAnalysis.threatenedPieceSquares.has(squareName);
+                  const isAttackingPiece = threatsEnabled && piece && piece.color !== activeTurn && threatAnalysis.threatLines.some(t => t.from === squareName);
                   const isJevCritical = jevImprint && jevImprint.criticalSquare === squareName;
                   const jevGlowColor = jevImprint?.uiColorOverlay || '#EF4444';
 
@@ -209,7 +224,8 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                     isSelected && styles.selectedSquare,
                     isLastMoveSquare && styles.lastMoveSquare,
                     isHero && styles.heroSquareHighlight,
-                    isThreat && styles.threatHighlight,
+                    isThreatenedPiece && styles.threatenedPieceHighlight,
+                    isAttackingPiece && styles.attackingPieceHighlight,
                     isJevCritical && {
                       backgroundColor: `${jevGlowColor}44`,
                       borderWidth: 2,
@@ -239,14 +255,45 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
               </View>
             ))}
 
-            {/* SVG Vectors & High-Speed Sensory Laser Overlay */}
+            {/* SVG Vectors, High-Speed Sensory Laser & Real Threat Lines */}
             <Svg
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
               width={boardSize}
               height={boardSize}
             >
-              {/* 1. Jev Vector Clamp Laser Trajectory */}
+              {/* 1. Real Threat Vectors & Attacking Lines (Dashed Crimson Lines) */}
+              {threatsEnabled &&
+                threatAnalysis.threatLines.map((threat, idx) => {
+                  const fromPt = getSquareCoords(threat.from, isWhiteOrientation, squareSize);
+                  const toPt = getSquareCoords(threat.to, isWhiteOrientation, squareSize);
+                  const isCritical = threat.severity >= 7;
+
+                  return (
+                    <React.Fragment key={`threat-vector-${idx}`}>
+                      <Line
+                        x1={fromPt.x}
+                        y1={fromPt.y}
+                        x2={toPt.x}
+                        y2={toPt.y}
+                        stroke="#EF4444"
+                        strokeWidth={isCritical ? '4' : '2.5'}
+                        strokeOpacity={0.85}
+                        strokeDasharray={isCritical ? '6, 3' : '4, 4'}
+                        strokeLinecap="round"
+                      />
+                      <SvgCircle
+                        cx={toPt.x}
+                        cy={toPt.y}
+                        r={isCritical ? '6' : '4.5'}
+                        fill="#EF4444"
+                        opacity={0.9}
+                      />
+                    </React.Fragment>
+                  );
+                })}
+
+              {/* 2. Jev Vector Clamp Laser Trajectory */}
               {vectorClampPoints && (
                 <Line
                   x1={vectorClampPoints.from.x}
@@ -381,6 +428,14 @@ const styles = StyleSheet.create({
   },
   threatHighlight: {
     backgroundColor: 'rgba(239, 68, 68, 0.28)',
+  },
+  threatenedPieceHighlight: {
+    backgroundColor: 'rgba(239, 68, 68, 0.35)',
+    borderWidth: 2,
+    borderColor: '#EF4444',
+  },
+  attackingPieceHighlight: {
+    backgroundColor: 'rgba(245, 158, 11, 0.22)',
   },
   jevCriticalSquareGlow: {
     backgroundColor: 'rgba(239, 68, 68, 0.45)',
