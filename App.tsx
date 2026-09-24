@@ -137,9 +137,11 @@ export default function App() {
   const syncBoard = useCallback(() => {
     setBoardState(chess.board());
     if (engineActive && settings.stockfishEnabled) {
-      evaluatePosition(chess.fen(), 15);
+      // Use efficient depth bound to avoid JS main-thread blocking
+      const depth = Math.min(Math.max(settings.cpuThreads >= 4 ? 3 : 2, 2), 3);
+      evaluatePosition(chess.fen(), depth);
     }
-  }, [chess, engineActive, settings.stockfishEnabled, evaluatePosition]);
+  }, [chess, engineActive, settings.stockfishEnabled, settings.cpuThreads, evaluatePosition]);
 
   useEffect(() => {
     syncBoard();

@@ -30,29 +30,41 @@ export function useStockfishEngine() {
     (fen: string, depth = 3) => {
       setEvaluation((prev) => ({ ...prev, isCalculating: true }));
 
-      // Run computation asynchronously to avoid blocking UI frame
+      // 1. Instant static evaluation (0ms latency for smooth bar response)
+      try {
+        const tempChess = new Chess(fen);
+        if (tempChess.isCheckmate()) {
+          const mateIn = tempChess.turn() === 'w' ? -1 : 1;
+          setEvaluation({
+            depth: 1,
+            scoreCp: null,
+            scoreMate: mateIn,
+            bestMove: null,
+            pvLine: 'Checkmate',
+            isCalculating: false,
+          });
+          return;
+        }
+
+        const staticScore = evaluateBoardState(tempChess) / 100;
+        setEvaluation((prev) => ({
+          ...prev,
+          scoreCp: staticScore,
+        }));
+      } catch {
+        // ignore
+      }
+
+      // 2. Non-blocking candidate search
       setTimeout(() => {
         try {
           const tempChess = new Chess(fen);
-          if (tempChess.isCheckmate()) {
-            const mateIn = tempChess.turn() === 'w' ? -1 : 1;
-            setEvaluation({
-              depth: 1,
-              scoreCp: null,
-              scoreMate: mateIn,
-              bestMove: null,
-              pvLine: 'Checkmate',
-              isCalculating: false,
-            });
-            return;
-          }
-
-          const searchResult = searchBestMove(tempChess, depth > 4 ? 4 : depth);
+          const searchResult = searchBestMove(tempChess, depth);
           const bestMoveLan = searchResult.bestMove ? `${searchResult.bestMove.from}${searchResult.bestMove.to}` : null;
           const pvStr = searchResult.bestMove ? searchResult.bestMove.san : '';
 
           setEvaluation({
-            depth: depth > 4 ? 4 : depth,
+            depth,
             scoreCp: searchResult.scoreCp,
             scoreMate: null,
             bestMove: bestMoveLan,
@@ -62,7 +74,7 @@ export function useStockfishEngine() {
         } catch {
           setEvaluation((prev) => ({ ...prev, isCalculating: false }));
         }
-      }, 10);
+      }, 0);
     },
     []
   );
