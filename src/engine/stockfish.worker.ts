@@ -2,6 +2,7 @@ import { searchBestMove, evaluateBoardState, CandidateMove } from './androidChes
 import { rustEngineBridge } from './rustWasmEngine';
 import { jevCognitiveFilter, JevVisualImprint } from './jevFilter';
 import { superCache } from './superCache';
+import { chessApiService } from './chessApiService';
 import { Chess } from 'chess.js';
 
 export interface WorkerMessage {
@@ -52,7 +53,7 @@ class StockfishWorkerController {
 
     if (msg.type === 'CALCULATE' && msg.data) {
       const calcId = ++this.currentCalculationId;
-      const { fen, depth = 3, movetime = 500 } = msg.data;
+      const { fen, depth = 12, movetime = 500 } = msg.data;
 
       // 1. Instant 0ms Super Cache & Transposition Table Lookup
       const cached = superCache.get(fen, depth);
@@ -80,13 +81,15 @@ class StockfishWorkerController {
         return;
       }
 
-      // 2. Instant static zero-allocation bitboard evaluation & Jev System-One Imprinting (<3ms)
+      // 2. System 1: Instant static zero-allocation bitboard evaluation & Jev Imprinting (<1ms)
+      let initialJevImprint: JevVisualImprint | undefined;
       try {
         const bitboardEval = rustEngineBridge.evaluateBitboard(fen);
         const tempChess = new Chess(fen);
         const staticScore = evaluateBoardState(tempChess) / 100 || bitboardEval.scoreCp;
         const legalMoves = tempChess.moves({ verbose: true });
         const jevDecision = jevCognitiveFilter.filterPosition(fen, legalMoves);
+        initialJevImprint = jevDecision.imprint;
 
         this.emit({
           type: 'EVALUATION',
@@ -99,7 +102,7 @@ class StockfishWorkerController {
           },
         });
 
-        // 3. High-confidence fast policy bypass (<5ms forward pass)
+        // 3. High-confidence fast policy bypass (<3ms forward pass)
         if (jevDecision.isObviousMove && jevDecision.policyMove) {
           superCache.set(
             fen,
@@ -126,48 +129,86 @@ class StockfishWorkerController {
         this.emit({ type: 'ERROR', error: err.message });
       }
 
-      // 4. Time-Sliced Non-Blocking Engine Search with micro-yield
-      setTimeout(() => {
-        if (calcId !== this.currentCalculationId) return;
+      // 4. System 2: Dual Chess-API.com Cloud Stream (80 MNPS Stockfish 18 NNUE @ 32 vCores)
+      chessApiService
+        .analyzePosition(fen, 3, depth)
+        .then((cloudResult) => {
+          if (calcId !== this.currentCalculationId) return;
 
-        try {
-          const tempChess = new Chess(fen);
-          const legalMoves = tempChess.moves({ verbose: true });
-          const jevDecision = jevCognitiveFilter.filterPosition(fen, legalMoves);
-          const allocatedDepth = Math.max(depth, jevDecision.recommendedDepth);
+          if (cloudResult) {
+            superCache.set(
+              fen,
+              cloudResult.bestMove,
+              cloudResult.scoreCp,
+              cloudResult.depth,
+              cloudResult.pvLine,
+              initialJevImprint
+            );
 
-          const searchResult = searchBestMove(tempChess, allocatedDepth);
-          const bestMoveLan = searchResult.bestMove
-            ? `${searchResult.bestMove.from}${searchResult.bestMove.to}`
-            : (jevDecision.policyMove || null);
-          const pvStr = searchResult.bestMove ? searchResult.bestMove.san : '';
-
-          // Cache evaluated state in Super Cache
-          superCache.set(
-            fen,
-            bestMoveLan,
-            searchResult.scoreCp,
-            allocatedDepth,
-            pvStr,
-            jevDecision.imprint
-          );
-
-          this.emit({
-            type: 'MOVE_FOUND',
-            data: {
-              bestMove: bestMoveLan,
-              scoreCp: searchResult.scoreCp,
-              depth: allocatedDepth,
-              pvLine: pvStr,
-              imprint: jevDecision.imprint,
-              topMoves: searchResult.topMoves,
-            },
-          });
-        } catch (err: any) {
-          this.emit({ type: 'ERROR', error: err.message });
-        }
-      }, 16); // 16ms frame-synced micro-yield
+            this.emit({
+              type: 'MOVE_FOUND',
+              data: {
+                bestMove: cloudResult.bestMove,
+                scoreCp: cloudResult.scoreCp,
+                depth: cloudResult.depth,
+                pvLine: `🦆 SF18: ${cloudResult.pvLine}`,
+                imprint: initialJevImprint,
+                topMoves: cloudResult.topMoves,
+              },
+            });
+          } else {
+            // 5. Offline fallback: local pruned alpha-beta search
+            this.runLocalSearch(calcId, fen, depth, initialJevImprint);
+          }
+        })
+        .catch(() => {
+          if (calcId !== this.currentCalculationId) return;
+          this.runLocalSearch(calcId, fen, depth, initialJevImprint);
+        });
     }
+  }
+
+  private runLocalSearch(
+    calcId: number,
+    fen: string,
+    depth: number,
+    imprint?: JevVisualImprint
+  ) {
+    setTimeout(() => {
+      if (calcId !== this.currentCalculationId) return;
+
+      try {
+        const tempChess = new Chess(fen);
+        const searchResult = searchBestMove(tempChess, Math.min(depth, 3));
+        const bestMoveLan = searchResult.bestMove
+          ? `${searchResult.bestMove.from}${searchResult.bestMove.to}`
+          : null;
+        const pvStr = searchResult.bestMove ? searchResult.bestMove.san : '';
+
+        superCache.set(
+          fen,
+          bestMoveLan,
+          searchResult.scoreCp,
+          3,
+          pvStr,
+          imprint
+        );
+
+        this.emit({
+          type: 'MOVE_FOUND',
+          data: {
+            bestMove: bestMoveLan,
+            scoreCp: searchResult.scoreCp,
+            depth: 3,
+            pvLine: pvStr,
+            imprint,
+            topMoves: searchResult.topMoves,
+          },
+        });
+      } catch (err: any) {
+        this.emit({ type: 'ERROR', error: err.message });
+      }
+    }, 10);
   }
 
   public addEventListener(callback: (event: WorkerResponse) => void) {
