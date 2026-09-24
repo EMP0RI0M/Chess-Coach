@@ -1,11 +1,3 @@
-/**
- * Stockfish Engine Bridge for React Native & Expo
- * 
- * In Android / iOS standalone native builds, this interfaces directly with
- * native C++ Stockfish via @loloof64/react-native-stockfish (UCI protocol).
- * In Expo Go, it provides a safe fallback engine interface.
- */
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Type definition for Stockfish analysis results
@@ -24,29 +16,12 @@ export function useStockfishEngine() {
     scoreCp: 0.2,
     scoreMate: null,
     bestMove: null,
-    pvLine: '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6',
+    pvLine: '',
     isCalculating: false,
   });
 
   const [engineReady, setEngineReady] = useState(false);
-  const nativeEngineRef = useRef<any>(null);
-
-  // Initialize Engine
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const stockfishModule = require('@loloof64/react-native-stockfish');
-      if (stockfishModule && stockfishModule.useStockfish) {
-        nativeEngineRef.current = stockfishModule;
-        if (isMounted) setEngineReady(true);
-      }
-    } catch {
-      if (isMounted) setEngineReady(false);
-    }
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const sendCommandRef = useRef<((cmd: string) => void) | null>(null);
 
   // Parse raw UCI output stream (e.g., "info depth 12 score cp 45 pv e2e4 e7e5")
   const parseUciOutput = useCallback((output: string) => {
@@ -90,38 +65,57 @@ export function useStockfishEngine() {
     }
   }, []);
 
+  // Initialize Native Engine if available
+  useEffect(() => {
+    let cleanupFn: (() => void) | null = null;
+    try {
+      const stockfishLib = require('@loloof64/react-native-stockfish');
+      if (stockfishLib && stockfishLib.useStockfish) {
+        // Native module is available
+        setEngineReady(true);
+      }
+    } catch {
+      // Fallback mode for web/Expo Go previews
+      setEngineReady(false);
+    }
+    return () => {
+      if (cleanupFn) cleanupFn();
+    };
+  }, []);
+
   // Send FEN position to Stockfish for real evaluation
   const evaluatePosition = useCallback(
     (fen: string, depth = 15) => {
       setEvaluation((prev) => ({ ...prev, isCalculating: true }));
 
-      if (nativeEngineRef.current && nativeEngineRef.current.sendCommandToStockfish) {
+      if (sendCommandRef.current) {
         try {
-          nativeEngineRef.current.sendCommandToStockfish(`position fen ${fen}\n`);
-          nativeEngineRef.current.sendCommandToStockfish(`go depth ${depth}\n`);
+          sendCommandRef.current(`position fen ${fen}`);
+          sendCommandRef.current(`go depth ${depth}`);
           return;
         } catch {
-          // Fallback
+          // Native command failed, fallback
         }
       }
 
-      // Live fallback calculation
-      setEvaluation({
+      // Safe heuristic fallback for non-native environments
+      const isBlackTurn = fen.includes(' b ');
+      const fallbackCp = isBlackTurn ? -0.15 : 0.25;
+      setEvaluation((prev) => ({
+        ...prev,
         depth,
-        scoreCp: 0.25,
+        scoreCp: fallbackCp,
         scoreMate: null,
-        bestMove: null,
-        pvLine: '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6',
         isCalculating: false,
-      });
+      }));
     },
     []
   );
 
   const stopEvaluation = useCallback(() => {
-    if (nativeEngineRef.current && nativeEngineRef.current.sendCommandToStockfish) {
+    if (sendCommandRef.current) {
       try {
-        nativeEngineRef.current.sendCommandToStockfish('stop\n');
+        sendCommandRef.current('stop');
       } catch {
         // ignore
       }
