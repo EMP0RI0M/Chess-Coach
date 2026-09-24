@@ -22,6 +22,7 @@ export function useStockfishEngine() {
 
   const [engineReady, setEngineReady] = useState(false);
   const workerRef = useRef<ReturnType<typeof createStockfishWorker> | null>(null);
+  const lastUpdateTimestampRef = useRef<number>(0);
 
   useEffect(() => {
     // Spin up background worker thread controller
@@ -31,12 +32,22 @@ export function useStockfishEngine() {
     worker.addEventListener((event) => {
       if (event.type === 'READY') {
         setEngineReady(true);
-      } else if (event.type === 'EVALUATION' && event.data) {
-        setEvaluation((prev) => ({
-          ...prev,
-          scoreCp: event.data!.scoreCp,
-        }));
+        return;
+      }
+
+      // Stream Throttle Gate (250ms) to prevent UI thread choking from rapid UCI line floods
+      const now = Date.now();
+      if (event.type === 'EVALUATION' && event.data) {
+        if (now - lastUpdateTimestampRef.current >= 250) {
+          lastUpdateTimestampRef.current = now;
+          setEvaluation((prev) => ({
+            ...prev,
+            scoreCp: event.data!.scoreCp,
+          }));
+        }
       } else if (event.type === 'MOVE_FOUND' && event.data) {
+        // High-priority: bestmove always passes immediately without throttling
+        lastUpdateTimestampRef.current = now;
         setEvaluation({
           depth: event.data.depth,
           scoreCp: event.data.scoreCp,
