@@ -1,0 +1,155 @@
+{"_e":"root:init","_t":1790241011664,"format":"v0-jsonl","version":"57.0.26"}
+{"_e":"env:mode","_t":1790241011672,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1790241011698,"mode":"development","files":[],"env":{}}
+{"_e":"devserver:start","_t":1790241016471,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1790241021557,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1790241025009,"plugins":[]}
+{"_e":"metro:instantiate","_t":1790241038664,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"root:init","_t":1790241055998,"format":"v0-jsonl","version":"57.0.26"}
+{"_e":"env:mode","_t":1790241056009,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1790241056032,"mode":"development","files":[],"env":{}}
+{"_e":"devserver:start","_t":1790241061004,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1790241066238,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:server_log","_t":1790241068207,"level":"error","data":["An unknown error occurred while installing React Native DevTools. Details:\n\n[0923/231107.983697:FATAL:electron/shell/app/electron_main_delegate.cc:313] Running as root without --no-sandbox is not supported. See https://crbug.com/638180.\n"]}
+{"_e":"expo:dev-tools-plugin:load","_t":1790241069456,"plugins":[]}
+{"_e":"metro:instantiate","_t":1790241084223,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:client_log","_t":1790241342867,"level":"error","data":["Project is incompatible with this version of Expo Go\n\nThis project requires a newer version of Expo Go.\n\nHow to fix this error:\nDownload the latest version of Expo Go from the Play Store."]}
+{"_e":"metro:bundling:started","_t":1790241422630,"id":"6","platform":"android","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790241422632,"id":"6","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790241422644,"id":"6","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790241429898,"id":"6","progress":0.010000000000000002,"total":1,"current":1}
+{"_e":"metro:bundling:progress","_t":1790241429998,"id":"6","progress":0.010000000000000002,"total":3,"current":1}
+{"_e":"metro:bundling:progress","_t":1790241430136,"id":"6","progress":0.04000000000000001,"total":9,"current":2}
+{"_e":"metro:bundling:progress","_t":1790241430170,"id":"6","progress":0.09,"total":9,"current":3}
+{"_e":"metro:bundling:progress","_t":1790241430297,"id":"6","progress":0.09,"total":17,"current":4}
+{"_e":"metro:bundling:progress","_t":1790241430753,"id":"6","progress":0.09,"total":17,"current":5}
+{"_e":"metro:bundling:progress","_t":1790241430985,"id":"6","progress":0.1111111111111111,"total":21,"current":7}
+{"_e":"metro:bundling:progress","_t":1790241433564,"id":"6","progress":0.16735537190082647,"total":22,"current":9}
+{"_e":"metro:bundling:progress","_t":1790241433888,"id":"6","progress":0.16735537190082647,"total":47,"current":12}
+{"_e":"metro:bundling:progress","_t":1790241434096,"id":"6","progress":0.16735537190082647,"total":49,"current":12}
+{"_e":"metro:bundling:progress","_t":1790241434143,"id":"6","progress":0.16735537190082647,"total":49,"current":13}
+{"_e":"metro:bundling:progress","_t":1790241434325,"id":"6","progress":0.16735537190082647,"total":62,"current":14}
+{"_e":"metro:bundling:progress","_t":1790241434542,"id":"6","progress":0.16735537190082647,"total":62,"current":15}
+{"_e":"metro:bundling:progress","_t":1790241434641,"id":"6","progress":0.16735537190082647,"total":63,"current":15}
+{"_e":"metro:bundling:progress","_t":1790241434831,"id":"6","progress":0.16735537190082647,"total":161,"current":16}
+{"_e":"metro:bundling:progress","_t":1790241435062,"id":"6","progress":0.16735537190082647,"total":171,"current":21}
+{"_e":"metro:bundling:progress","_t":1790241435195,"id":"6","progress":0.16735537190082647,"total":173,"current":25}
+{"_e":"metro:bundling:progress","_t":1790241435327,"id":"6","progress":0.16735537190082647,"total":174,"current":32}
+{"_e":"metro:bundling:progress","_t":1790241435426,"id":"6","progress":0.16735537190082647,"total":181,"current":42}
+{"_e":"metro:bundling:progress","_t":1790241435547,"id":"6","progress":0.16735537190082647,"total":182,"current":50}
+{"_e":"metro:bundling:progress","_t":1790241435653,"id":"6","progress":0.16735537190082647,"total":188,"current":56}
+{"_e":"metro:bundling:progress","_t":1790241435817,"id":"6","progress":0.16735537190082647,"total":189,"current":62}
+{"_e":"metro:bundling:progress","_t":1790241435946,"id":"6","progress":0.16735537190082647,"total":192,"current":66}
+{"_e":"metro:bundling:progress","_t":1790241436072,"id":"6","progress":0.16735537190082647,"total":200,"current":70}
+{"_e":"metro:bundling:progress","_t":1790241436172,"id":"6","progress":0.16735537190082647,"total":214,"current":76}
+{"_e":"metro:bundling:progress","_t":1790241436274,"id":"6","progress":0.16735537190082647,"total":219,"current":82}
+{"_e":"metro:bundling:progress","_t":1790241436396,"id":"6","progress":0.16735537190082647,"total":221,"current":88}
+{"_e":"metro:bundling:progress","_t":1790241436499,"id":"6","progress":0.16735537190082647,"total":241,"current":98}
+{"_e":"metro:bundling:progress","_t":1790241436610,"id":"6","progress":0.17361111111111113,"total":252,"current":105}
+{"_e":"metro:bundling:progress","_t":1790241436716,"id":"6","progress":0.19035196255273476,"total":259,"current":113}
+{"_e":"metro:bundling:progress","_t":1790241436822,"id":"6","progress":0.20299480739041179,"total":273,"current":123}
+{"_e":"metro:bundling:progress","_t":1790241436929,"id":"6","progress":0.23258387405060105,"total":282,"current":136}
+{"_e":"metro:bundling:progress","_t":1790241437034,"id":"6","progress":0.2659252874260947,"total":287,"current":148}
+{"_e":"metro:bundling:progress","_t":1790241437140,"id":"6","progress":0.30697589481373266,"total":296,"current":164}
+{"_e":"metro:bundling:progress","_t":1790241437245,"id":"6","progress":0.3476005050451464,"total":307,"current":181}
+{"_e":"metro:bundling:progress","_t":1790241437349,"id":"6","progress":0.3476005050451464,"total":330,"current":189}
+{"_e":"metro:bundling:progress","_t":1790241437458,"id":"6","progress":0.3476005050451464,"total":341,"current":201}
+{"_e":"metro:bundling:progress","_t":1790241437563,"id":"6","progress":0.37975974703606935,"total":357,"current":220}
+{"_e":"metro:bundling:progress","_t":1790241437663,"id":"6","progress":0.40247427448259915,"total":372,"current":236}
+{"_e":"metro:bundling:progress","_t":1790241437765,"id":"6","progress":0.40247427448259915,"total":403,"current":248}
+{"_e":"metro:bundling:progress","_t":1790241437878,"id":"6","progress":0.40247427448259915,"total":419,"current":263}
+{"_e":"metro:bundling:progress","_t":1790241437978,"id":"6","progress":0.40247427448259915,"total":440,"current":279}
+{"_e":"metro:bundling:progress","_t":1790241438089,"id":"6","progress":0.4219198421556122,"total":448,"current":291}
+{"_e":"metro:bundling:progress","_t":1790241438189,"id":"6","progress":0.43102079395085063,"total":460,"current":302}
+{"_e":"metro:bundling:progress","_t":1790241438294,"id":"6","progress":0.43102079395085063,"total":482,"current":312}
+{"_e":"metro:bundling:progress","_t":1790241438415,"id":"6","progress":0.43102079395085063,"total":512,"current":326}
+{"_e":"metro:bundling:progress","_t":1790241438517,"id":"6","progress":0.43102079395085063,"total":517,"current":338}
+{"_e":"metro:bundling:progress","_t":1790241438619,"id":"6","progress":0.43102079395085063,"total":528,"current":346}
+{"_e":"metro:bundling:progress","_t":1790241438722,"id":"6","progress":0.45543362123491554,"total":529,"current":357}
+{"_e":"metro:bundling:progress","_t":1790241438826,"id":"6","progress":0.47889481311161664,"total":539,"current":373}
+{"_e":"metro:bundling:progress","_t":1790241438929,"id":"6","progress":0.5008684310121108,"total":544,"current":385}
+{"_e":"metro:bundling:progress","_t":1790241439040,"id":"6","progress":0.5274788214609195,"total":548,"current":398}
+{"_e":"metro:bundling:progress","_t":1790241439143,"id":"6","progress":0.5754110867624381,"total":555,"current":421}
+{"_e":"metro:bundling:progress","_t":1790241439243,"id":"6","progress":0.5953399151182651,"total":556,"current":429}
+{"_e":"metro:bundling:progress","_t":1790241439343,"id":"6","progress":0.6163504948433443,"total":563,"current":442}
+{"_e":"metro:bundling:progress","_t":1790241439446,"id":"6","progress":0.6530233336639555,"total":568,"current":459}
+{"_e":"metro:bundling:progress","_t":1790241439547,"id":"6","progress":0.658241367034532,"total":583,"current":473}
+{"_e":"metro:bundling:progress","_t":1790241439659,"id":"6","progress":0.6656575283053324,"total":592,"current":483}
+{"_e":"metro:bundling:progress","_t":1790241439773,"id":"6","progress":0.6704021452086991,"total":607,"current":497}
+{"_e":"metro:bundling:progress","_t":1790241439873,"id":"6","progress":0.6939898907374619,"total":611,"current":509}
+{"_e":"metro:bundling:progress","_t":1790241439973,"id":"6","progress":0.7275086505190311,"total":612,"current":522}
+{"_e":"metro:bundling:progress","_t":1790241440079,"id":"6","progress":0.7442197927242074,"total":619,"current":534}
+{"_e":"metro:bundling:progress","_t":1790241440182,"id":"6","progress":0.7702111549342523,"total":621,"current":545}
+{"_e":"metro:bundling:progress","_t":1790241440283,"id":"6","progress":0.7702111549342523,"total":632,"current":552}
+{"_e":"metro:bundling:progress","_t":1790241440383,"id":"6","progress":0.7832946865893731,"total":635,"current":562}
+{"_e":"metro:bundling:progress","_t":1790241440510,"id":"6","progress":0.7959985351562501,"total":640,"current":571}
+{"_e":"metro:bundling:progress","_t":1790241440610,"id":"6","progress":0.8226068144943212,"total":645,"current":585}
+{"_e":"metro:bundling:progress","_t":1790241440710,"id":"6","progress":0.8346288675506781,"total":648,"current":592}
+{"_e":"metro:bundling:progress","_t":1790241440810,"id":"6","progress":0.8522891640180179,"total":651,"current":601}
+{"_e":"metro:bundling:progress","_t":1790241440911,"id":"6","progress":0.8568185115167368,"total":659,"current":610}
+{"_e":"metro:bundling:progress","_t":1790241441011,"id":"6","progress":0.865659924791896,"total":661,"current":615}
+{"_e":"metro:bundling:progress","_t":1790241441113,"id":"6","progress":0.865659924791896,"total":665,"current":618}
+{"_e":"metro:bundling:progress","_t":1790241441222,"id":"6","progress":0.865659924791896,"total":675,"current":625}
+{"_e":"metro:bundling:progress","_t":1790241441323,"id":"6","progress":0.8770032007575345,"total":677,"current":634}
+{"_e":"metro:bundling:progress","_t":1790241441424,"id":"6","progress":0.8970676706320714,"total":681,"current":645}
+{"_e":"metro:bundling:progress","_t":1790241441556,"id":"6","progress":0.9226108033240997,"total":684,"current":657}
+{"_e":"metro:bundling:progress","_t":1790241441657,"id":"6","progress":0.9482103545291503,"total":686,"current":668}
+{"_e":"metro:bundling:progress","_t":1790241441777,"id":"6","progress":0.9627806642386982,"total":692,"current":679}
+{"_e":"metro:bundling:progress","_t":1790241441878,"id":"6","progress":0.9827341374586522,"total":692,"current":686}
+{"_e":"metro:bundling:progress","_t":1790241441979,"id":"6","progress":0.9942363232406521,"total":693,"current":691}
+{"_e":"metro:bundling:progress","_t":1790241442216,"id":"6","progress":0.9971160793671616,"total":693,"current":692}
+{"_e":"metro:bundling:progress","_t":1790241442318,"id":"6","progress":0.9971160793671616,"total":695,"current":693}
+{"_e":"metro:bundling:progress","_t":1790241442426,"id":"6","progress":0.9971160793671616,"total":704,"current":701}
+{"_e":"metro:bundling:progress","_t":1790241442538,"id":"6","progress":0.9971691450858285,"total":706,"current":705}
+{"_e":"metro:bundling:progress","_t":1790241442647,"id":"6","progress":0.999,"total":707,"current":707}
+{"_e":"metro:bundling:done","_t":1790241443353,"id":"6","total":707,"ms":20721.990097}
+{"_e":"metro:client_log","_t":1790241444593,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:bundling:started","_t":1790242281034,"id":"b","platform":"android","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790242281036,"id":"b","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790242281044,"id":"b","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790242281260,"id":"b","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790242281348,"id":"b","total":1,"ms":312.920313}
+{"_e":"metro:client_log","_t":1790242282263,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:server_log","_t":1790242319890,"level":"info","data":["Launching DevTools..."]}
+{"_e":"metro:server_log","_t":1790242320483,"level":"error","data":["Error launching DevTools: The EDGE_PATH environment variable must be set to a Edge/Chromium executable no older than Edge stable."]}
+{"_e":"metro:server_log","_t":1790242324577,"level":"info","data":["Launching DevTools..."]}
+{"_e":"metro:server_log","_t":1790242325084,"level":"error","data":["Error launching DevTools: The EDGE_PATH environment variable must be set to a Edge/Chromium executable no older than Edge stable."]}
+{"_e":"metro:client_log","_t":1790242432268,"level":"error","data":["[Error: Unable to find node on an unmounted component.]"]}
+{"_e":"metro:bundling:started","_t":1790242474026,"id":"e","platform":"android","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790242474027,"id":"e","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790242474129,"id":"e","total":1,"ms":101.666302}
+{"_e":"metro:client_log","_t":1790242474919,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:bundling:started","_t":1790243267891,"id":"k","platform":"android","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790243267892,"id":"k","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790243268070,"id":"k","total":1,"ms":178.637969}
+{"_e":"metro:client_log","_t":1790243270896,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:bundling:failed","_t":1790243328647,"id":null,"message":"SyntaxError: /root/chess-coach-app/App.tsx: Unexpected token, expected \"}\" (327:10)\n\n  325 |\n  326 | const styles = StyleSheet.create({\n> 327 |   safeArea: {\n      |           ^\n  328 |     flex: 1,\n  329 |     backgroundColor: '#F3F6FC',\n  330 |     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 36) : 10,","importStack":null,"filename":"App.tsx","targetModuleName":null,"originModulePath":null}
+{"_e":"metro:server_log","_t":1790243528267,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","host.exp.exponent","A024 - 16 - API 36","60"]}
+{"_e":"metro:bundling:started","_t":1790243736571,"id":"p","platform":"android","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790243736572,"id":"p","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790243736579,"id":"p","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790243736841,"id":"p","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790243737041,"id":"p","total":1,"ms":469.467188}
+{"_e":"metro:server_log","_t":1790244033428,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","host.exp.exponent","A024 - 16 - API 36","60"]}
+{"_e":"metro:server_log","_t":1790244238605,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","host.exp.exponent","A024 - 16 - API 36","60"]}
+{"_e":"metro:bundling:started","_t":1790244425913,"id":"s","platform":"android","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790244425914,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244425926,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244426598,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244427848,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244427948,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244428048,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244428150,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244428249,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244428343,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790244428349,"id":"s","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790244428666,"id":"s","total":1,"ms":2752.461353}
+{"_e":"metro:bundling:started","_t":1790244517401,"id":"u","platform":"android","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790244517402,"id":"u","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790244517493,"id":"u","total":1,"ms":91.248125}
+{"_e":"metro:bundling:started","_t":1790245205897,"id":"x","platform":"android","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790245205898,"id":"x","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790245205908,"id":"x","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790245206309,"id":"x","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790245206491,"id":"x","total":1,"ms":592.900573}
+{"_e":"metro:server_log","_t":1790245389673,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","host.exp.exponent","A024 - 16 - API 36","60"]}
