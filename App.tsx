@@ -177,14 +177,15 @@ export default function App() {
   // Synchronize evaluation when FEN changes with 250ms non-blocking debounce
   useEffect(() => {
     if (engineActive && settings.stockfishEnabled) {
-      const targetDepth = settings.serverAnalysis ? 18 : Math.min(Math.max(settings.cpuThreads >= 4 ? 4 : 3, 2), 4);
+      const targetDepth = settings.serverAnalysis ? 18 : (settings.infiniteAnalysis ? 20 : Math.min(Math.max(settings.cpuThreads >= 4 ? 4 : 3, 2), 4));
       const timer = setTimeout(() => {
         evaluatePosition(
           fen,
           targetDepth,
           800,
           settings.engineSource,
-          settings.serverAnalysis
+          settings.serverAnalysis,
+          settings.infiniteAnalysis
         );
       }, 250);
 
@@ -200,6 +201,7 @@ export default function App() {
     settings.cpuThreads,
     settings.engineSource,
     settings.serverAnalysis,
+    settings.infiniteAnalysis,
     evaluatePosition,
     stopEvaluation,
   ]);
@@ -1166,6 +1168,29 @@ export default function App() {
                   <Switch
                     value={settings.stockfishEnabled}
                     onValueChange={(val) => setSettings({ ...settings, stockfishEnabled: val })}
+                    trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
+                  />
+                </View>
+
+                {/* 3. Infinite Calculation Mode */}
+                <View style={styles.settingRow}>
+                  <View style={styles.settingTextCol}>
+                    <Text style={styles.settingLabel}>Infinite Calculation (Local)</Text>
+                    <Text style={styles.settingDesc}>Continuous iterative deepening (Depth 1 → 20+) without stopping</Text>
+                  </View>
+                  <Switch
+                    value={settings.infiniteAnalysis}
+                    onValueChange={(val) => {
+                      updateSetting('infiniteAnalysis', val);
+                      evaluatePosition(
+                        fen,
+                        settings.serverAnalysis ? 18 : (val ? 20 : 3),
+                        800,
+                        settings.engineSource,
+                        settings.serverAnalysis,
+                        val
+                      );
+                    }}
                     trackColor={{ true: '#2563EB', false: '#CBD5E1' }}
                   />
                 </View>

@@ -17,6 +17,7 @@ export interface ChessSettings {
   bestMoveArrow: boolean;
   bestHero: boolean;
   serverAnalysis: boolean;
+  infiniteAnalysis: boolean;
   // Display & Board
   smallBoard: boolean;
   useChessground: boolean;
@@ -102,6 +103,7 @@ export const useChessStore = create<ChessGameState>((set, get) => {
       bestMoveArrow: true,
       bestHero: true,
       serverAnalysis: true,
+      infiniteAnalysis: true,
       smallBoard: false,
       useChessground: false,
       showEvalGauge: true,

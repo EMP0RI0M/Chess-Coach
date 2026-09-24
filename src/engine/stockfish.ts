@@ -93,13 +93,14 @@ export function useStockfishEngine() {
       depth = 12,
       movetime = 800,
       engineSource: EngineSource = 'stockfish',
-      serverAnalysis = true
+      serverAnalysis = true,
+      infiniteAnalysis = true
     ) => {
       setEvaluation((prev) => ({ ...prev, isCalculating: true }));
       if (workerRef.current) {
         workerRef.current.postMessage({
           type: 'CALCULATE',
-          data: { fen, depth, movetime, engineSource, serverAnalysis },
+          data: { fen, depth, movetime, engineSource, serverAnalysis, infiniteAnalysis },
         });
       }
     },

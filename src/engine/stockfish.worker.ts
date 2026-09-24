@@ -15,6 +15,7 @@ export interface WorkerMessage {
     movetime?: number;
     engineSource?: EngineSource;
     serverAnalysis?: boolean;
+    infiniteAnalysis?: boolean;
   };
 }
 
@@ -60,7 +61,14 @@ class StockfishWorkerController {
 
     if (msg.type === 'CALCULATE' && msg.data) {
       const calcId = ++this.currentCalculationId;
-      const { fen, depth = 12, movetime = 500, engineSource = 'stockfish', serverAnalysis = true } = msg.data;
+      const {
+        fen,
+        depth = 12,
+        movetime = 500,
+        engineSource = 'stockfish',
+        serverAnalysis = true,
+        infiniteAnalysis = true,
+      } = msg.data;
 
       // 1. Instant 0ms Super Cache & Transposition Table Lookup
       const cached = superCache.get(fen, depth);
@@ -144,9 +152,10 @@ class StockfishWorkerController {
         this.emit({ type: 'ERROR', error: err.message });
       }
 
-      // 4. If Local Stockfish explicitly requested or Server Analysis toggled OFF
+      // 4. If Local Stockfish explicitly requested or Server Analysis toggled OFF -> Infinite Local Iterative Deepening
       if (engineSource === 'local_stockfish' || !serverAnalysis) {
-        this.runLocalSearch(calcId, fen, depth, initialJevImprint, 'Local Stockfish');
+        const maxDepth = infiniteAnalysis ? 20 : depth;
+        this.runLocalSearchInfinite(calcId, fen, 1, maxDepth, initialJevImprint, 'Local Stockfish');
         return;
       }
 
@@ -238,64 +247,74 @@ class StockfishWorkerController {
             },
           });
         } else {
-          // Offline fallback
-          this.runLocalSearch(calcId, fen, depth, imprint, 'Local Stockfish');
+          // Offline fallback: iterative deepening infinite calculation
+          this.runLocalSearchInfinite(calcId, fen, 1, 20, imprint, 'Local Stockfish');
         }
       })
       .catch(() => {
         if (calcId !== this.currentCalculationId) return;
-        this.runLocalSearch(calcId, fen, depth, imprint, 'Local Stockfish');
+        this.runLocalSearchInfinite(calcId, fen, 1, 20, imprint, 'Local Stockfish');
       });
   }
 
-  private runLocalSearch(
+  /**
+   * Infinite Iterative Deepening Search Loop (Local Engine)
+   * Continuously searches depth 1 -> 2 -> 3 -> 4 -> 5 ... 20+ without blocking UI
+   */
+  private runLocalSearchInfinite(
     calcId: number,
     fen: string,
-    depth: number,
+    currentDepth: number,
+    maxDepth: number,
     imprint?: JevVisualImprint,
     label: string = 'Local Stockfish'
   ) {
+    if (calcId !== this.currentCalculationId || currentDepth > maxDepth) return;
+
     setTimeout(() => {
       if (calcId !== this.currentCalculationId) return;
 
       try {
         const tempChess = new Chess(fen);
-        const searchResult = searchBestMove(tempChess, Math.min(depth, 3));
+        const searchResult = searchBestMove(tempChess, currentDepth);
         const bestMoveLan = searchResult.bestMove
           ? `${searchResult.bestMove.from}${searchResult.bestMove.to}`
           : null;
         const pvStr = searchResult.bestMove ? searchResult.bestMove.san : '';
-        const localJevAnalysis = bestMoveLan 
-          ? jevInvariantExtractor.extract(fen, [bestMoveLan], searchResult.scoreCp) 
+        const localJevAnalysis = bestMoveLan
+          ? jevInvariantExtractor.extract(fen, [bestMoveLan], searchResult.scoreCp)
           : undefined;
-
-        superCache.set(
-          fen,
-          bestMoveLan,
-          searchResult.scoreCp,
-          3,
-          pvStr,
-          imprint
-        );
 
         this.emit({
           type: 'MOVE_FOUND',
           data: {
             bestMove: bestMoveLan,
             scoreCp: searchResult.scoreCp,
-            depth: 3,
+            depth: currentDepth,
             pvLine: pvStr,
             imprint,
             topMoves: searchResult.topMoves,
             jevAnalysis: localJevAnalysis,
             engineSource: 'local_stockfish',
-            sourceLabel: `${label} (Depth 3)`,
+            sourceLabel: `${label} (Depth ${currentDepth})`,
           },
         });
+
+        // Progressive continuous deepening step
+        if (currentDepth < maxDepth && calcId === this.currentCalculationId) {
+          this.runLocalSearchInfinite(
+            calcId,
+            fen,
+            currentDepth + 1,
+            maxDepth,
+            imprint,
+            label
+          );
+        }
       } catch (err: any) {
         this.emit({ type: 'ERROR', error: err.message });
       }
-    }, 10);
+    }, currentDepth === 1 ? 0 : 35);
   }
 
   public addEventListener(callback: (event: WorkerResponse) => void) {
